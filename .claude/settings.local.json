@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s --request POST --url https://api.theirstack.com/v1/jobs/search --header 'Accept: application/json' --header 'Content-Type: application/json' --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaGVlcmFqZGFyZWthcjAwMTRAZ21haWwuY29tIiwicGVybWlzc2lvbnMiOiJ1c2VyIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDctMDJUMDk6MDQ6MTguODIwOTM5KzAwOjAwIn0.9fal3UGQ5T7dGudCSO5-kbSl5JwFRxVLHmSQKCTWSMA' -d '{\"include_total_results\": false,\"posted_at_max_age_days\": 7,\"job_location_or\":[{\"id\":1269750}],\"job_description_contains_or\":[\"backend developer\",\"python developer\"],\"blur_company_data\":false,\"page\":0,\"limit\":2}')",
+      "Bash(echo \"exit=$?\")",
+      "Read(//c/Users/dheer/AppData/Local/Temp/claude/C--Users-dheer-onedrive-desktop-jobify/95f6222d-dc96-46d9-b2f0-b83451e9b4a7/scratchpad/**)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(curl -s \"http://localhost:8787/api/jobs?q=remote%20react%20developer\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s \"http://localhost:8787/api/jobs?q=react%20developer\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\('count:',r.meta.count\\);console.log\\('distinct sources:',r.meta.sources.length,'→',r.meta.sources.join\\(', '\\)\\);}\\);\")",
+      "Bash(node --input-type=module -e \"import {fetchSerpApi} from './server/sources/serpapi.js'; const j=await fetchSerpApi\\('react developer'\\); console.log\\('serpapi returned:', j.length, 'jobs across pages'\\);\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\('count:',r.meta.count\\);console.log\\('sources:',r.meta.sources.join\\(', '\\)\\);}\\);\")",
+      "Bash(curl -s \"http://localhost:8787/api/jobs?q=react%20developer%20bangalore\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\('count:',r.meta.count\\);console.log\\('--- locations ---'\\);r.jobs.slice\\(0,8\\).forEach\\(j=>console.log\\('•',j.title,'—',j.location,'['+j.source+']'\\)\\);}\\);\")",
+      "Bash(curl -s \"http://localhost:8787/api/jobs?q=software%20engineer\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\('count:',r.meta.count\\);r.jobs.slice\\(0,8\\).forEach\\(j=>console.log\\('•',j.location,'|',j.title.slice\\(0,45\\),'['+j.source+']'\\)\\);}\\);\")",
+      "Bash(curl -s \"http://localhost:8787/api/jobs?q=software%20engineer%20latest\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\('count:',r.meta.count\\);r.jobs.slice\\(0,10\\).forEach\\(j=>console.log\\('•',j.location,'|',j.title.slice\\(0,42\\),'['+j.source+']'\\)\\);}\\);\")",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git check-ignore *)",
+      "Bash(git config *)",
+      "Bash(git commit -q -m ' *)"
+    ]
+  }
+}
