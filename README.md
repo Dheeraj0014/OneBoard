@@ -18,9 +18,6 @@ cp .env.example .env      # optional: add aggregator API keys
 npm run dev               # starts the API (:8787) and the client (:5173)
 ```
 
-- Client: http://localhost:5173
-- API:    http://localhost:8787/api/jobs
-
 The company-board sources (Greenhouse + Lever) work immediately with **no keys**.
 Aggregator sources activate once you add their keys to `.env`.
 
