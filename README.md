@@ -1,4 +1,4 @@
-# Prism — live job aggregator
+# OneBoard — live job aggregator
 
 One lens for every job board. Prism aggregates **live** job listings from
 multiple compliant sources, de-duplicates them, and ranks them against a
