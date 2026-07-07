@@ -4,6 +4,12 @@ One lens for every job board. Prism aggregates **live** job listings from
 multiple compliant sources, de-duplicates them, and ranks them against a
 natural-language query.
 
+## Tech stack
+
+React + Vite on the client, an Express API server, and pluggable source
+adapters (Greenhouse, Lever, Adzuna, JSearch, SerpApi, TheirStack) with
+server-side AI ranking via the Anthropic API.
+
 ## Quick start
 
 ```bash
