@@ -91,7 +91,7 @@ export default function App() {
         />
 
         <main className="wrap">
-          <Hero query={query} setQuery={setQuery} onSearch={handleSearch} aiLoading={aiLoading} />
+          <Hero query={query} setQuery={setQuery} onSearch={handleSearch} loading={loading} aiLoading={aiLoading} />
 
           <div className="layout">
             <aside className="sidebar sidebar-static">

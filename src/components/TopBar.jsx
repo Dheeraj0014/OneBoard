@@ -16,7 +16,7 @@ export default function TopBar({
       <div className="topbar-inner">
         <div className="brand">
           <Logo />
-          <h1>Prism</h1>
+          <h1>OneBoard</h1>
           <span className="tag">one lens for every job board</span>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
