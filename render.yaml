@@ -1,0 +1,54 @@
+# Render blueprint — one web service that serves both the API and the built
+# client from a single origin (no CORS to configure, one URL, one deploy).
+#
+# Secrets are NOT in this file. Every key below is marked sync:false, which makes
+# Render prompt for it in the dashboard instead of reading it from the repo.
+services:
+  - type: web
+    name: oneboard
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render terminates TLS at its proxy, so the real client IP is in
+      # X-Forwarded-For. Without this every visitor shares one rate-limit bucket.
+      - key: TRUST_PROXY
+        value: "true"
+
+      # ── Auth (required — without it the AI routes refuse with a 503) ────────
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+
+      # ── AI (optional — without it the app falls back to the local ranker) ───
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: claude-sonnet-4-6
+
+      # ── Job sources (all optional; the app boots with whichever are set) ────
+      - key: SERPAPI_KEY
+        sync: false
+      - key: SERPAPI_COUNTRY
+        value: in
+      - key: SERPAPI_LOCATION
+        value: India
+      - key: SERPAPI_PAGES
+        value: "3"
+
+      # ── Rate limits / cost control ─────────────────────────────────────────
+      - key: RL_JOBS_PER_MIN
+        value: "20"
+      - key: RL_RESUME_PER_MIN
+        value: "5"
+      - key: RL_AI_PER_MIN
+        value: "10"
+      - key: RL_AI_PER_DAY
+        value: "120"
+      - key: CACHE_MAX_ENTRIES
+        value: "300"

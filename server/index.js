@@ -1,6 +1,8 @@
+import path from "node:path";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import { clerkMiddleware, getAuth } from "@clerk/express";
 import { config } from "./config.js";
 import { getJobs } from "./aggregate.js";
@@ -9,6 +11,11 @@ import { pdfToText, PdfParseError, MAX_PDF_BYTES } from "./lib/pdf.js";
 
 const app = express();
 
+// On Render/Fly/etc the app sits behind a reverse proxy, so req.ip is the
+// proxy's address unless we trust the X-Forwarded-For it sets. Untrusted, every
+// visitor would share a single rate-limit bucket.
+if (config.rateLimit.trustProxy) app.set("trust proxy", 1);
+
 /** Thrown by the CORS check so the error handler can answer 403 rather than 500. */
 class OriginNotAllowedError extends Error {}
 
@@ -16,13 +23,20 @@ class OriginNotAllowedError extends Error {}
 // would let any page on the web drive the AI routes below with the user's
 // browser — and our Anthropic key.
 app.use(
-  cors({
-    origin(origin, cb) {
-      // Non-browser callers (curl, uptime checks) send no Origin header. They
-      // are allowed past CORS; the routes that cost money are still behind auth.
-      if (!origin || config.allowedOrigins.includes(origin)) return cb(null, true);
-      cb(new OriginNotAllowedError(`Origin not allowed: ${origin}`));
-    },
+  cors((req, cb) => {
+    const origin = req.headers.origin;
+
+    // Same-origin requests carry an Origin header on POST, so in the deployed
+    // single-service setup the app would otherwise be blocked from calling
+    // itself unless ALLOWED_ORIGINS happened to name its own URL exactly.
+    const self = `${req.protocol}://${req.get("host")}`;
+
+    // Non-browser callers (curl, uptime checks) send no Origin at all. They pass
+    // CORS; the routes that cost money are still behind auth and rate limits.
+    if (!origin || origin === self || config.allowedOrigins.includes(origin)) {
+      return cb(null, { origin: true });
+    }
+    cb(new OriginNotAllowedError(`Origin not allowed: ${origin}`));
   })
 );
 
@@ -59,6 +73,58 @@ function protect(req, res, next) {
   return next();
 }
 
+/** Shared limiter options: standard RateLimit headers, JSON body, no legacy headers. */
+const limiter = (windowMs, limit, message, keyGenerator) =>
+  rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    keyGenerator,
+    handler: (_req, res) => res.status(429).json({ error: message }),
+  });
+
+/**
+ * Every distinct ?q= is a cache miss, and a cache miss is a live SerpAPI search
+ * (billed per page). Unauthenticated, so this is capped per IP.
+ */
+const jobsLimit = limiter(
+  60_000,
+  config.rateLimit.jobsPerMinute,
+  "Too many searches — give it a minute."
+);
+
+/** PDF parsing is unauthenticated CPU work; keep a lid on it. */
+const resumeLimit = limiter(
+  60_000,
+  config.rateLimit.resumePerMinute,
+  "Too many resume uploads — give it a minute."
+);
+
+/**
+ * AI limits key on the Clerk user, not the IP: sign-up is open, so one person
+ * can trivially spread an IP-based limit across many addresses. Falls back to a
+ * (IPv6-safe) IP key, though `protect` runs first so a user should always exist.
+ */
+const aiKey = (req, res) => getAuth(req)?.userId || ipKeyGenerator(req, res);
+
+const aiBurstLimit = limiter(
+  60_000,
+  config.rateLimit.aiPerMinute,
+  "You're going too fast — try again shortly.",
+  aiKey
+);
+
+const aiDailyLimit = limiter(
+  24 * 60 * 60 * 1000,
+  config.rateLimit.aiPerDay,
+  "Daily AI limit reached. Try again tomorrow.",
+  aiKey
+);
+
+/** Applied to every route that calls Anthropic: auth, then burst, then daily cap. */
+const paid = [protect, aiBurstLimit, aiDailyLimit];
+
 // Matching posts the current result set with job descriptions attached, so the
 // body runs larger than a plain API payload.
 app.use(express.json({ limit: "4mb" }));
@@ -81,7 +147,7 @@ app.get("/api/health", (_req, res) => {
  * GET /api/jobs?q=<query>
  * Returns live, de-duplicated job listings from all configured sources.
  */
-app.get("/api/jobs", async (req, res) => {
+app.get("/api/jobs", jobsLimit, async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q : "";
     const country = typeof req.query.country === "string" ? req.query.country : "";
@@ -89,7 +155,7 @@ app.get("/api/jobs", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("[/api/jobs]", err);
-    res.status(502).json({ error: "Failed to aggregate live jobs", detail: err.message });
+    res.status(502).json({ error: "Failed to aggregate live jobs" });
   }
 });
 
@@ -98,7 +164,7 @@ app.get("/api/jobs", async (req, res) => {
  * Ranks the supplied jobs against a natural-language query via Claude.
  * Returns { map: { [jobId]: { score, reason } } }.
  */
-app.post("/api/rank", protect, async (req, res) => {
+app.post("/api/rank", paid, async (req, res) => {
   try {
     const { q, jobs } = req.body || {};
     if (typeof q !== "string" || !q.trim() || !Array.isArray(jobs)) {
@@ -119,14 +185,14 @@ app.post("/api/rank", protect, async (req, res) => {
  * Extracts plain text from an uploaded PDF resume. Returns { text }.
  * The file is parsed in memory and never stored.
  */
-app.post("/api/resume", upload.single("resume"), async (req, res) => {
+app.post("/api/resume", resumeLimit, upload.single("resume"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Attach a PDF in the 'resume' field" });
     res.json({ text: await pdfToText(req.file.buffer) });
   } catch (err) {
     if (err instanceof PdfParseError) return res.status(400).json({ error: err.message });
     console.error("[/api/resume]", err);
-    res.status(500).json({ error: "Could not read that PDF", detail: err.message });
+    res.status(500).json({ error: "Could not read that PDF" });
   }
 });
 
@@ -134,7 +200,7 @@ app.post("/api/resume", upload.single("resume"), async (req, res) => {
  * POST /api/profile { resumeText, prefs }
  * Distils resume text into a structured profile. Returns { profile }.
  */
-app.post("/api/profile", protect, async (req, res) => {
+app.post("/api/profile", paid, async (req, res) => {
   try {
     const { resumeText, prefs } = req.body || {};
     if (typeof resumeText !== "string" || resumeText.trim().length < 40) {
@@ -155,7 +221,7 @@ app.post("/api/profile", protect, async (req, res) => {
  * Scores the supplied jobs against a resume profile + stated preferences.
  * Returns { map: { [jobId]: { score, reason } } }.
  */
-app.post("/api/match", protect, async (req, res) => {
+app.post("/api/match", paid, async (req, res) => {
   try {
     const { profile, jobs } = req.body || {};
     if (!profile || typeof profile !== "object" || !Array.isArray(jobs)) {
@@ -176,7 +242,7 @@ app.post("/api/match", protect, async (req, res) => {
  * POST /api/intro { job }
  * Drafts a short outreach intro for a job. Returns { intro }.
  */
-app.post("/api/intro", protect, async (req, res) => {
+app.post("/api/intro", paid, async (req, res) => {
   try {
     const { job } = req.body || {};
     if (!job || typeof job !== "object") {
@@ -191,6 +257,24 @@ app.post("/api/intro", protect, async (req, res) => {
     res.status(502).json({ error: "AI intro failed" });
   }
 });
+
+// An unrecognised /api/* path is an API client's mistake, so answer in JSON
+// rather than letting Express fall through to its default HTML 404.
+app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+
+// In production this process also serves the built client, so the app is one
+// origin. Registered after the API routes so /api/* always wins.
+if (config.serveStatic) {
+  const dist = path.resolve(process.cwd(), "dist");
+  app.use(express.static(dist));
+
+  // SPA fallback: any GET that isn't an API call returns index.html. A missing
+  // /api/* route still falls through to a JSON 404 rather than serving HTML.
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api/")) return next();
+    res.sendFile(path.join(dist, "index.html"));
+  });
+}
 
 /**
  * Multer rejects bad uploads (oversized / non-PDF) from inside its middleware,

@@ -9,7 +9,7 @@ import { fetchAdzuna } from "./sources/adzuna.js";
 import { fetchJSearch } from "./sources/jsearch.js";
 import { fetchTheirStack } from "./sources/theirstack.js";
 
-const cache = createCache(config.cacheTtlMs);
+const cache = createCache(config.cacheTtlMs, config.cacheMaxEntries);
 
 /** Simple full-text match used to filter company-board jobs by a query. */
 function matchesQuery(job, terms) {

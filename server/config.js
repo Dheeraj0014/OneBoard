@@ -3,6 +3,8 @@ import "dotenv/config";
 const csv = (v, fallback) =>
   (v ? v.split(",") : fallback).map((s) => s.trim()).filter(Boolean);
 
+const isProd = process.env.NODE_ENV === "production";
+
 /**
  * Central server configuration. API keys come from the environment. Every
  * source is optional: with no keys the app still boots, it just returns fewer
@@ -11,10 +13,34 @@ const csv = (v, fallback) =>
 export const config = {
   port: Number(process.env.PORT) || 8787,
 
+  // In production this process also serves the built front-end (dist/), so the
+  // app is a single origin: one deploy, one URL, and no CORS to misconfigure.
+  // In dev, Vite serves the client and proxies /api here instead.
+  serveStatic: process.env.SERVE_STATIC === "true" || isProd,
+
   // How long an aggregated result set stays fresh before a refetch (ms).
   cacheTtlMs: 15 * 60 * 1000,
+  // Cap on distinct cached query result-sets. The cache is keyed by
+  // region:query, so without a ceiling a loop over ?q=aa,ab,ac… grows it
+  // without bound until the process runs out of memory.
+  cacheMaxEntries: Number(process.env.CACHE_MAX_ENTRIES) || 300,
   // Per-source network timeout (ms).
   requestTimeoutMs: 12000,
+
+  // Rate limits. /api/jobs spends SerpAPI quota on every cache miss and the AI
+  // routes spend Anthropic credits, so both are capped rather than left open.
+  rateLimit: {
+    // Behind a hosting proxy (Render, Fly, …) the real client IP arrives in
+    // X-Forwarded-For. Without trusting it, every visitor shares one bucket and
+    // the limits either lock everyone out at once or do nothing.
+    trustProxy: process.env.TRUST_PROXY === "true",
+    jobsPerMinute: Number(process.env.RL_JOBS_PER_MIN) || 20,
+    resumePerMinute: Number(process.env.RL_RESUME_PER_MIN) || 5,
+    // AI limits are per signed-in user, not per IP — sign-up is open, so an IP
+    // limit alone wouldn't stop one person burning credits from many addresses.
+    aiPerMinute: Number(process.env.RL_AI_PER_MIN) || 10,
+    aiPerDay: Number(process.env.RL_AI_PER_DAY) || 120,
+  },
 
   // Default search region (two-letter ISO code) when the client doesn't send
   // one. "in" = India. The client can override per request via ?country=.
