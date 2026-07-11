@@ -10,6 +10,7 @@ import { useJobs } from "./hooks/useJobs.js";
 import { useAuthGate } from "./hooks/useAuthGate.js";
 import { useEscapeKey } from "./hooks/useEscapeKey.js";
 import { useBodyScrollLock } from "./hooks/useBodyScrollLock.js";
+import { useProfileMatch, hasOnboarded, markOnboarded } from "./hooks/useProfileMatch.js";
 import { deriveSkills, deriveSources } from "./utils/derive.js";
 import { detectCountry } from "./data/countries.js";
 
@@ -18,6 +19,9 @@ import Hero from "./components/Hero.jsx";
 import Filters from "./components/Filters.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import RankedBanner from "./components/RankedBanner.jsx";
+import ProfileBanner from "./components/ProfileBanner.jsx";
+import ResumePrompt from "./components/ResumePrompt.jsx";
+import ResumeModal from "./components/ResumeModal.jsx";
 import JobList from "./components/JobList.jsx";
 import FilterDrawer from "./components/FilterDrawer.jsx";
 import JobDetail from "./components/JobDetail.jsx";
@@ -31,6 +35,9 @@ export default function App() {
   const [view, setView] = useState("all"); // "all" | "saved"
   const [selected, setSelected] = useState(null);
   const [drawer, setDrawer] = useState(false);
+  // First-time visitors are met with the resume prompt; returning ones aren't.
+  const [resumeOpen, setResumeOpen] = useState(() => !hasOnboarded());
+  const [promptDismissed, setPromptDismissed] = useState(false);
 
   const { toast, showToast } = useToast();
   const { saved, toggleSave } = useSavedJobs();
@@ -39,25 +46,45 @@ export default function App() {
   const handleSave = useMemo(() => requireAuth(toggleSave), [requireAuth, toggleSave]);
   const { f, setF, resetFilters, activeFilters } = useJobFilters();
   const { jobs, loading, error, loadJobs } = useJobs(country);
-  const { ai, aiLoading, runAI, clearRank } = useJobRanking(
-    useCallback(() => setSort("relevance"), [])
-  );
+
+  // Ranking has two sources. A resume profile scores the whole feed and
+  // re-scores it on every search or region change; without one, a search falls
+  // back to ranking against the query text alone.
+  const showRelevance = useCallback(() => setSort("relevance"), []);
+  const { ai: rank, aiLoading, runAI, clearRank } = useJobRanking(showRelevance);
+  const { profile, match, matching, saveProfile, clearProfile } = useProfileMatch(jobs, {
+    onMatched: showRelevance,
+  });
+
+  // Both produce the same { map, q, mode } shape, so everything downstream —
+  // the score ring, the "why it fits" line, the relevance sort — is agnostic
+  // about which one is driving. The profile wins when the user has one.
+  const ai = profile ? match : rank;
+
   const { counts, results } = useFilteredJobs({ jobs, view, saved, f, ai, sort });
 
   // Filter facets are derived from the live listings.
   const allSkills = useMemo(() => deriveSkills(jobs), [jobs]);
   const sources = useMemo(() => deriveSources(jobs), [jobs]);
 
+  const closeResume = useCallback(() => {
+    markOnboarded(); // dismissing counts as an answer — don't reopen next visit
+    setResumeOpen(false);
+  }, []);
+
   // Close modals with Escape; lock body scroll while any is open.
   useEscapeKey(
     useCallback(() => {
       setSelected(null);
       setDrawer(false);
+      setResumeOpen(false);
     }, [])
   );
-  useBodyScrollLock(Boolean(selected) || drawer);
+  useBodyScrollLock(Boolean(selected) || drawer || resumeOpen);
 
-  // Search = fetch live jobs for the query, then rank the results with AI.
+  // Search = fetch live jobs for the query, then rank the results. With a
+  // profile, useProfileMatch re-scores the new list on its own, so ranking by
+  // the query text as well would only overwrite better scores with worse ones.
   const handleSearch = useCallback(
     async (text) => {
       const q = (text ?? "").trim();
@@ -65,9 +92,9 @@ export default function App() {
       setView("all");
       setDrawer(false);
       const list = await loadJobs(q, country);
-      runAI(q, list);
+      if (!profile) runAI(q, list);
     },
-    [loadJobs, runAI, country]
+    [loadJobs, runAI, country, profile]
   );
 
   // Changing the region refetches the current query (or catalog) for that
@@ -78,10 +105,28 @@ export default function App() {
       setCountry(code);
       const q = query.trim();
       const list = await loadJobs(q, code);
-      if (q) runAI(q, list);
+      if (q && !profile) runAI(q, list);
     },
-    [country, query, loadJobs, runAI]
+    [country, query, loadJobs, runAI, profile]
   );
+
+  // Building the profile flips the whole feed into resume-matched order.
+  const handleResumeSubmit = useCallback(
+    async (resumeText, prefs) => {
+      await saveProfile(resumeText, prefs);
+      clearRank(); // a stale query ranking would sit behind the profile scores
+      setResumeOpen(false);
+      showToast("Resume saved — scoring your feed");
+    },
+    [saveProfile, clearRank, showToast]
+  );
+
+  const handleClearProfile = useCallback(() => {
+    clearProfile();
+    setSort("newest");
+    setPromptDismissed(true); // they just turned it off; don't immediately re-ask
+    showToast("Resume matching turned off");
+  }, [clearProfile, showToast]);
 
   const handleClearRank = useCallback(() => {
     clearRank();
@@ -144,7 +189,25 @@ export default function App() {
                 boardCount={sources.length}
               />
 
-              {ai && <RankedBanner ai={ai} onClear={handleClearRank} />}
+              {profile ? (
+                <ProfileBanner
+                  profile={profile}
+                  match={match}
+                  matching={matching}
+                  onEdit={() => setResumeOpen(true)}
+                  onClear={handleClearProfile}
+                />
+              ) : (
+                <>
+                  {ai && <RankedBanner ai={ai} onClear={handleClearRank} />}
+                  {!promptDismissed && !resumeOpen && jobs.length > 0 && (
+                    <ResumePrompt
+                      onOpen={() => setResumeOpen(true)}
+                      onDismiss={() => setPromptDismissed(true)}
+                    />
+                  )}
+                </>
+              )}
 
               <JobList
                 results={results}
@@ -177,6 +240,16 @@ export default function App() {
           activeFilters={activeFilters}
           onReset={resetFilters}
           onClose={() => setDrawer(false)}
+        />
+      )}
+
+      {resumeOpen && (
+        <ResumeModal
+          profile={profile}
+          allSkills={allSkills}
+          onSubmit={handleResumeSubmit}
+          onSkip={closeResume}
+          onClose={closeResume}
         />
       )}
 

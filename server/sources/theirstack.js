@@ -1,7 +1,7 @@
 import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
 import {
-  buildJob, makeId, summarize, extractSkills, toK,
+  buildJob, makeId, summarize, describe, extractSkills, toK,
   daysAgo, toISO,
 } from "../lib/normalize.js";
 
@@ -110,6 +110,7 @@ export async function fetchTheirStack(query = "", countryCode = "") {
         posted: daysAgo(j.date_posted),
         skills: extractSkills(`${description} ${slugs}`),
         summary: summarize(description),
+        description: describe(description),
       });
     });
   } catch (err) {

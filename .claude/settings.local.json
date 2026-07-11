@@ -29,7 +29,9 @@
       "Read(//tmp/**)",
       "Bash(curl -s -w \"\\\\nTIME: %{time_total}s HTTP:%{http_code}\\\\n\" \"http://localhost:8787/api/jobs?q=job\" -o /tmp/job.json)",
       "Bash(python -c \"import json;d=json.load\\(open\\('/tmp/job.json'\\)\\);print\\('count',d.get\\('meta',{}\\).get\\('count'\\)\\);print\\('sources',d.get\\('meta',{}\\).get\\('sources'\\)\\)\")",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "PowerShell(npx playwright install chromium 2>&1 | Select-Object -Last 3)",
+      "PowerShell(Start-Process npx -ArgumentList \"vite\",\"--port\",\"5173\" -WindowStyle Hidden -PassThru | Select-Object Id | Format-List)"
     ]
   }
 }

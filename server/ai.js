@@ -80,6 +80,147 @@ export async function rankJobs(text, jobs) {
   return map;
 }
 
+/* ------------------------------------------------------------------ *
+ * Resume matching
+ * ------------------------------------------------------------------ */
+
+/** Jobs sent to Claude in a single matching call. */
+const MATCH_BATCH = 12;
+/** Hard cap on jobs scored per request, to bound latency and token spend. */
+const MATCH_LIMIT = 60;
+
+/** Pull the first JSON value of the given kind out of a model response. */
+function parseJson(out, open, close) {
+  const s = out.indexOf(open);
+  const e = out.lastIndexOf(close);
+  if (s === -1 || e === -1) throw new Error("No JSON found in AI response");
+  return JSON.parse(out.slice(s, e + 1));
+}
+
+/**
+ * Distil raw resume text into a compact structured profile. Keeping this a
+ * separate one-off call (rather than pasting the whole resume into every
+ * matching prompt) means the resume is read once, and each match batch then
+ * carries a small profile instead of thousands of tokens of CV.
+ *
+ * Returns { title, level, years, skills[], domains[], summary }.
+ */
+export async function extractProfile(resumeText, prefs = {}) {
+  const resume = String(resumeText).slice(0, 12000);
+  const prompt = `Read this candidate's resume and distil it into a structured profile.
+
+Resume:
+"""
+${resume}
+"""
+
+Return ONLY a JSON object, no markdown or preamble, in this exact shape:
+{"title":"their current or target job title","level":"one of Entry, Mid, Senior, Lead","years":5,"skills":["up to 12 concrete technical skills, most important first"],"domains":["up to 4 industries or problem domains they have worked in"],"summary":"one sentence, max 20 words, describing them as a candidate"}`;
+
+  const profile = parseJson(await askClaude(prompt, 700), "{", "}");
+
+  return {
+    title: String(profile.title || "").slice(0, 80),
+    level: ["Entry", "Mid", "Senior", "Lead"].includes(profile.level) ? profile.level : "Mid",
+    years: Number.isFinite(Number(profile.years)) ? Number(profile.years) : null,
+    skills: (Array.isArray(profile.skills) ? profile.skills : []).slice(0, 12).map(String),
+    domains: (Array.isArray(profile.domains) ? profile.domains : []).slice(0, 4).map(String),
+    summary: String(profile.summary || "").slice(0, 160),
+    prefs,
+  };
+}
+
+/** Render the candidate's stated preferences as prompt lines, skipping blanks. */
+function prefLines(prefs = {}) {
+  const lines = [];
+  if (prefs.roles) lines.push(`- Roles they want: ${prefs.roles}`);
+  if (prefs.skills?.length) lines.push(`- Skills they want to use: ${prefs.skills.join(", ")}`);
+  if (prefs.remote?.length) lines.push(`- Workplace type: ${prefs.remote.join(" or ")}`);
+  if (prefs.level?.length) lines.push(`- Seniority wanted: ${prefs.level.join(" or ")}`);
+  if (prefs.minSalary) lines.push(`- Minimum salary: ${prefs.minSalary}k`);
+  return lines.length ? lines.join("\n") : "- (none stated)";
+}
+
+/** Score one batch of jobs against the profile. Returns a partial map. */
+async function matchBatch(profile, jobs) {
+  const compact = jobs.map((j) => ({
+    id: j.id, title: j.title, company: j.company, location: j.location,
+    remote: j.remote, salary: [j.min, j.max], type: j.type, level: j.level,
+    skills: j.skills, description: j.description || j.summary || "",
+  }));
+
+  const prompt = `You are a job matching engine. Score how well each job fits ONE specific candidate.
+
+CANDIDATE
+- Current title: ${profile.title || "unknown"}
+- Seniority: ${profile.level} (${profile.years ?? "?"} years experience)
+- Skills: ${profile.skills.join(", ") || "unknown"}
+- Domains: ${profile.domains.join(", ") || "unknown"}
+- Summary: ${profile.summary || "n/a"}
+
+WHAT THEY WANT
+${prefLines(profile.prefs)}
+
+JOBS
+${JSON.stringify(compact)}
+
+Score EVERY job from 0-100 on how well the JOB DESCRIPTION matches this candidate's experience AND their stated preferences. Weigh: skill overlap with the description's requirements, seniority alignment (penalise a big level mismatch in either direction), workplace type, domain relevance, and salary. Be discriminating — use the full range, do not cluster every job around 70.
+
+Give a concise reason (max 10 words, lowercase, no period) naming the specific overlap or gap.
+
+Return ONLY a JSON array, no markdown or preamble, in this exact shape:
+[{"id":"j1","score":92,"reason":"react + typescript match, senior level, remote"}]`;
+
+  const arr = parseJson(await askClaude(prompt, 1600), "[", "]");
+  const map = {};
+  arr.forEach((r) => {
+    if (r && r.id) {
+      map[r.id] = {
+        score: Math.max(0, Math.min(100, Math.round(r.score))),
+        reason: String(r.reason || "").slice(0, 90),
+      };
+    }
+  });
+  return map;
+}
+
+/**
+ * Score jobs against a resume profile. Batched so each prompt stays small
+ * enough to reason carefully over full job descriptions, and run in parallel
+ * so a large result set doesn't serialise into a long wait. A failed batch
+ * degrades to neutral scores for its jobs rather than failing the whole match.
+ *
+ * Returns a map of { [jobId]: { score, reason } } covering every job passed in.
+ */
+export async function matchJobs(profile, jobs) {
+  if (!config.anthropic.enabled) throw new AiNotConfiguredError();
+
+  const subset = jobs.slice(0, MATCH_LIMIT);
+  const batches = [];
+  for (let i = 0; i < subset.length; i += MATCH_BATCH) {
+    batches.push(subset.slice(i, i + MATCH_BATCH));
+  }
+
+  const settled = await Promise.allSettled(batches.map((b) => matchBatch(profile, b)));
+
+  const map = {};
+  settled.forEach((r, i) => {
+    if (r.status === "fulfilled") Object.assign(map, r.value);
+    else console.warn(`[match] batch ${i} failed: ${r.reason?.message}`);
+  });
+
+  // Every batch failing means the AI is genuinely unreachable — surface that so
+  // the client can fall back to its local heuristic instead of showing a page
+  // of meaningless neutral scores.
+  if (!Object.keys(map).length) throw new Error("All matching batches failed");
+
+  // Jobs past the cap, or dropped by a failed batch, get a neutral placeholder.
+  jobs.forEach((j) => {
+    if (!map[j.id]) map[j.id] = { score: 50, reason: "not scored against your profile" };
+  });
+  return map;
+}
+
 /**
  * Draft a short outreach intro for a job. Throws on failure so the caller
  * can substitute a local template.

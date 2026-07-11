@@ -3,7 +3,7 @@
  * unified shape the frontend understands:
  *
  *   { id, title, company, location, remote, min, max, type, level,
- *     source, url, postedAt, posted, skills, summary, resp }
+ *     source, url, postedAt, posted, skills, summary, description, resp }
  *
  * Real listings are incomplete, so every field degrades gracefully:
  * unknown salary -> null, unknown skills -> [], unknown date -> null.
@@ -41,6 +41,17 @@ export function summarize(text = "", max = 220) {
   const clean = stripHtml(text);
   if (clean.length <= max) return clean;
   return clean.slice(0, max).replace(/\s+\S*$/, "") + "…";
+}
+
+/**
+ * A longer description excerpt kept for resume matching, where the AI needs the
+ * actual requirements — not the 220-char teaser `summary` used on the cards.
+ * Capped because it ships to the browser and back up to the matcher: ~900 chars
+ * covers the requirements section of a typical posting without blowing up the
+ * request payload or the prompt token budget.
+ */
+export function describe(text = "") {
+  return summarize(text, 900);
 }
 
 /** Whole-number thousands, e.g. 152000 -> 152. Null-safe. */
@@ -117,6 +128,7 @@ export function buildJob(partial) {
     skills: [],
     resp: [],
     summary: "",
+    description: "",
     location: "",
     posted: null,
     postedAt: null,

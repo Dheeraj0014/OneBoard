@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
 import { resolveCountry } from "../lib/countries.js";
 import {
-  buildJob, makeId, summarize, extractSkills, toK,
+  buildJob, makeId, summarize, describe, extractSkills, toK,
   inferLevel, daysAgo, toISO,
 } from "../lib/normalize.js";
 
@@ -55,6 +55,7 @@ export async function fetchJSearch(query = "", countryCode = "") {
         posted: daysAgo(j.job_posted_at_timestamp ? j.job_posted_at_timestamp * 1000 : j.job_posted_at_datetime_utc),
         skills: extractSkills(description, Array.isArray(j.job_required_skills) ? j.job_required_skills : []),
         summary: summarize(description),
+        description: describe(description),
       });
     });
   } catch (err) {

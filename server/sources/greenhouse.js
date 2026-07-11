@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
 import { matchesCountry } from "../lib/countries.js";
 import {
-  buildJob, makeId, summarize, extractSkills,
+  buildJob, makeId, summarize, describe, extractSkills,
   inferLevel, inferType, inferRemote, daysAgo, toISO,
 } from "../lib/normalize.js";
 
@@ -41,6 +41,7 @@ async function fetchBoard(token, country) {
           posted: daysAgo(j.updated_at),
           skills: extractSkills(description),
           summary: summarize(description),
+          description: describe(description),
         });
       })
       .filter((job) => matchesCountry(job, country));

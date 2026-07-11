@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
 import { resolveCountry, countryName } from "../lib/countries.js";
 import {
-  buildJob, makeId, summarize, extractSkills, toK,
+  buildJob, makeId, summarize, describe, extractSkills, toK,
   inferLevel, inferType, inferRemote, toISO,
 } from "../lib/normalize.js";
 
@@ -73,6 +73,7 @@ function mapJob(j) {
       )
     ),
     summary: summarize(description),
+    description: describe(description),
   });
 }
 

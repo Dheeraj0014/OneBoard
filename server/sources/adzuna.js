@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
 import { resolveCountry } from "../lib/countries.js";
 import {
-  buildJob, makeId, summarize, extractSkills, toK,
+  buildJob, makeId, summarize, describe, extractSkills, toK,
   inferLevel, inferType, inferRemote, daysAgo, toISO,
 } from "../lib/normalize.js";
 
@@ -51,6 +51,7 @@ export async function fetchAdzuna(query = "", countryCode = "") {
         posted: daysAgo(j.created),
         skills: extractSkills(description, j.category?.label ? [j.category.label] : []),
         summary: summarize(description),
+        description: describe(description),
       });
     });
   } catch (err) {
