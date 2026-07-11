@@ -43,9 +43,12 @@ html,body,#root{margin:0;min-height:100%}
 
 .topbar{position:sticky;top:0;z-index:30;-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border-bottom:1px solid var(--border);background:var(--panel)}
 .topbar-inner{max-width:1200px;margin:0 auto;padding:13px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.brand{display:flex;align-items:center;gap:11px}
-.brand h1{font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0}
-.brand .tag{font-size:11px;color:var(--t2);font-weight:500;padding-left:9px;border-left:1px solid var(--border)}
+/* min-width:0 on both halves: without it the nowrap buttons refuse to shrink
+   and overflow the header instead of collapsing at narrow widths. */
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand h1{font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0;white-space:nowrap}
+.brand .tag{font-size:11px;color:var(--t2);font-weight:500;padding-left:9px;border-left:1px solid var(--border);white-space:nowrap}
+.topbar-actions{display:flex;align-items:center;gap:10px;min-width:0}
 
 .btn{font:inherit;font-weight:600;font-size:13px;line-height:1;border-radius:11px;border:1px solid var(--border);background:var(--panel);color:var(--t0);padding:10px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.18s ease;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);white-space:nowrap}
 .btn:hover{background:var(--panelHover);border-color:var(--borderStrong);transform:translateY(-1px)}
@@ -140,15 +143,19 @@ html,body,#root{margin:0;min-height:100%}
 .crow{display:flex;gap:14px;align-items:flex-start}
 .avatar{flex:none;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:var(--t0);letter-spacing:-.02em}
 .cmid{flex:1;min-width:0}
-.ctitle{font-size:15.5px;font-weight:600;letter-spacing:-.01em;color:var(--t0);margin:0 0 3px;display:flex;align-items:center;gap:8px}
-.cmeta{font-size:13px;color:var(--t1);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.cmeta .dot{width:3px;height:3px;border-radius:50%;background:var(--t2)}
+/* wrap + min-width:0 so a long job title pushes the badge to the next line
+   instead of overflowing the card (which clips it — .card is overflow:hidden). */
+.ctitle{font-size:15.5px;font-weight:600;letter-spacing:-.01em;color:var(--t0);margin:0 0 3px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;overflow-wrap:anywhere}
+.cmeta{font-size:13px;color:var(--t1);display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+/* Scoped to .cmeta before, so the separators in .cfoot and the detail panel
+   rendered as zero-size spans. flex:none keeps them from being squashed. */
+.dot{flex:none;width:3px;height:3px;border-radius:50%;background:var(--t2)}
 .sal{font-family:var(--mono);font-weight:600;color:var(--t0);font-size:12.5px}
 .rtag{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:7px}
 .skills{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
 .skill{font-size:11.5px;font-weight:500;color:var(--t1);padding:4px 9px;border-radius:7px;background:var(--panel2);border:1px solid var(--border)}
 .badge-india{flex:none;font-size:10.5px;font-weight:600;line-height:1;letter-spacing:.01em;padding:3px 7px;border-radius:6px;color:#f97316;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.28)}
-.cfoot{display:flex;align-items:center;gap:9px;margin-top:12px;font-size:12px;color:var(--t2)}
+.cfoot{display:flex;align-items:center;flex-wrap:wrap;gap:6px 9px;margin-top:12px;font-size:12px;color:var(--t2);min-width:0}
 .src{display:inline-flex;align-items:center;gap:6px;font-weight:500}
 .cright{flex:none;display:flex;flex-direction:column;align-items:center;gap:10px}
 .savebtn{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);transition:.16s}
@@ -282,13 +289,33 @@ html,body,#root{margin:0;min-height:100%}
   .hero{padding:32px 0 20px}
   .drawer{position:fixed;top:0;left:0;height:100%;width:min(300px,86%);background:var(--bg1);border-right:1px solid var(--border);z-index:50;overflow-y:auto;padding:20px;animation:slideIn .3s ease both;box-shadow:24px 0 70px rgba(0,0,0,.4)}
 }
+/* The tagline is decorative, and it's the first thing to cost us the row once
+   the mobile Filters button appears at 980px. */
+@media (max-width:900px){
+  .brand .tag{display:none}
+}
 @media (max-width:620px){
   .rm-row{grid-template-columns:1fr;gap:0}
   .rprompt .txt{font-size:12.5px}
-  .rprompt-cta{display:none}
+  /* The CTA used to be display:none here, which left the banner with no way to
+     open the resume modal — only the dismiss X. Wrap it onto its own row instead. */
+  .rprompt{flex-wrap:wrap}
+  .rprompt-cta{order:1;width:100%;justify-content:center}
   .footer-inner{flex-direction:column;align-items:flex-start;gap:16px}
   .footer-tag{display:none}
   .footer-right{width:100%;justify-content:space-between}
+
+  /* Phones: brand on its own row, controls spread across the row beneath it.
+     Wrapping keeps every control reachable rather than dropping any. */
+  .topbar-inner{flex-wrap:wrap;gap:10px;padding:12px 16px}
+  .topbar-actions{width:100%;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .mfilter-text{display:none}
+
+  /* Job cards: reclaim the horizontal room the desktop padding eats up. */
+  .wrap{padding:0 14px 56px}
+  .card{padding:14px}
+  .crow{gap:11px}
+  .avatar{width:40px;height:40px;font-size:14px;border-radius:10px}
 }
 @media (min-width:981px){.drawer-wrap{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}

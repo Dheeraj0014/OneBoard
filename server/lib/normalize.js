@@ -21,18 +21,29 @@ const TECH_TERMS = [
   "SQL", "Django", "Flask", "FastAPI", "Spring", "Express", ".NET",
 ];
 
-/** Strip HTML tags & decode the few entities boards commonly emit. */
+/**
+ * Strip HTML tags & decode the few entities boards commonly emit.
+ *
+ * Entities are decoded BEFORE tags are stripped. Greenhouse serves its posting
+ * body HTML-escaped (`&lt;div&gt;…`), so stripping first would find no tags to
+ * remove and the decode would then hand those tags back as visible text — which
+ * is exactly what leaked "<div class="content-intro"><p>" into the UI.
+ * `&amp;` is decoded last so `&amp;lt;` survives as the literal text "&lt;"
+ * rather than being unescaped twice into a tag.
+ */
 export function stripHtml(html = "") {
-  return String(html)
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
+  const decoded = String(html)
     .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&#39;|&rsquo;|&apos;/g, "'")
     .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
+    .replace(/&amp;/g, "&");
+
+  return decoded
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -20,10 +20,11 @@ export default function TopBar({
           <h1>OneBoard</h1>
           <span className="tag">one lens for every job board</span>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button className="btn mfilter" onClick={onOpenDrawer}>
+        <div className="topbar-actions">
+          <button className="btn mfilter" aria-label="Filters" onClick={onOpenDrawer}>
             <SlidersHorizontal size={15} />
-            Filters
+            {/* Label drops on phones so the row fits; the icon carries it. */}
+            <span className="mfilter-text">Filters</span>
             {activeFilters > 0 && <span style={{ fontFamily: "var(--mono)" }}>· {activeFilters}</span>}
           </button>
           <button
