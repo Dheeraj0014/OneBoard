@@ -10,7 +10,6 @@ export default function Hero({ query, setQuery, onSearch, loading, aiLoading }) 
   return (
     <section className="hero">
       <span className="eyebrow">
-        <Sparkles size={13} />
         AI-powered job search
       </span>
       <h2>

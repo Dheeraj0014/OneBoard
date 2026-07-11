@@ -49,8 +49,12 @@ function inferType(statuses = [], title = "") {
  * Requires THEIRSTACK_API_KEY. Returns [] when unconfigured or on error so the
  * rest of the aggregation keeps working.
  */
-export async function fetchTheirStack(query = "") {
+export async function fetchTheirStack(query = "", countryCode = "") {
   if (!config.theirstack.enabled) return [];
+  // TheirStack is scoped to India (its configured location ids). Skip it when a
+  // different country is selected so foreign searches aren't polluted with
+  // Indian listings.
+  if (countryCode && countryCode.toLowerCase() !== "in") return [];
 
   const { apiKey, locationIds, maxAgeDays, limit } = config.theirstack;
 

@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
+import { resolveCountry } from "../lib/countries.js";
 import {
   buildJob, makeId, summarize, extractSkills, toK,
   inferLevel, daysAgo, toISO,
@@ -17,10 +18,12 @@ const EMP_TYPE = {
  * listings originally from LinkedIn, Indeed, Glassdoor, etc. — under RapidAPI's
  * license. Requires a key and a search query. Returns [] when unconfigured.
  */
-export async function fetchJSearch(query = "") {
+export async function fetchJSearch(query = "", countryCode = "") {
   if (!config.jsearch.enabled || !query) return [];
 
   const params = new URLSearchParams({ query, page: "1", num_pages: "1" });
+  // Restrict to the selected market when it's a recognized country code.
+  if (resolveCountry(countryCode)) params.set("country", countryCode.toLowerCase());
   const url = `https://${config.jsearch.host}/search?${params}`;
 
   try {

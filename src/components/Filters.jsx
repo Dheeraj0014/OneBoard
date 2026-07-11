@@ -1,12 +1,24 @@
+import { Globe, ChevronDown } from "lucide-react";
 import { sourceColor, REMOTES, LEVELS, TYPES } from "../data/constants.js";
+import { COUNTRIES } from "../data/countries.js";
 import FilterOption from "./FilterOption.jsx";
 
 /**
- * The full set of filter controls (sources, workplace, experience, type,
- * salary and skills). Source and skill options are derived from the live job
- * list and passed in. Shared between the desktop sidebar and mobile drawer.
+ * The full set of filter controls (region, sources, workplace, experience,
+ * type, salary and skills). Source and skill options are derived from the live
+ * job list and passed in. Region change triggers a server refetch (handled by
+ * the parent). Shared between the desktop sidebar and mobile drawer.
  */
-export default function Filters({ f, set, counts, sources = [], allSkills = [] }) {
+export default function Filters({
+  f,
+  set,
+  counts,
+  sources = [],
+  allSkills = [],
+  country = "in",
+  onCountryChange,
+  countryLoading = false,
+}) {
   const toggle = (key, val) =>
     set((p) => {
       const s = new Set(p[key]);
@@ -16,6 +28,27 @@ export default function Filters({ f, set, counts, sources = [], allSkills = [] }
 
   return (
     <>
+      <div className="fgroup">
+        <div className="fhead">
+          <span>Country</span>
+        </div>
+        <div className={`select select-full${countryLoading ? " is-loading" : ""}`}>
+          <Globe size={15} className="lead" />
+          <select
+            value={country}
+            onChange={(e) => onCountryChange?.(e.target.value)}
+            aria-label="Search region"
+          >
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={15} className="chev" />
+        </div>
+      </div>
+
       <div className="fgroup">
         <div className="fhead">
           <span>Source</span>

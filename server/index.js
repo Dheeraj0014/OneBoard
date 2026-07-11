@@ -19,7 +19,8 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/jobs", async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q : "";
-    const result = await getJobs(q);
+    const country = typeof req.query.country === "string" ? req.query.country : "";
+    const result = await getJobs(q, country);
     res.json(result);
   } catch (err) {
     console.error("[/api/jobs]", err);
@@ -71,9 +72,12 @@ app.post("/api/intro", async (req, res) => {
 app.listen(config.port, () => {
   console.log(`▲ Prism job API listening on http://localhost:${config.port}`);
   console.log(
-    `  sources → serpapi:${config.serpapi.enabled ? "on" : "off"} ` +
+    `  sources → greenhouse:${config.greenhouse.enabled ? `${config.greenhouse.boards.length} boards` : "off"} ` +
+      `lever:${config.lever.enabled ? `${config.lever.boards.length} boards` : "off"} ` +
+      `serpapi:${config.serpapi.enabled ? "on" : "off"} ` +
       `adzuna:${config.adzuna.enabled ? "on" : "off"} jsearch:${config.jsearch.enabled ? "on" : "off"} ` +
       `theirstack:${config.theirstack.enabled ? "on" : "off"}`
   );
+  console.log(`  region → default ${config.defaultCountry}`);
   console.log(`  ai → ${config.anthropic.enabled ? `on (${config.anthropic.model})` : "off (no ANTHROPIC_API_KEY)"}`);
 });

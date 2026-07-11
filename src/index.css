@@ -57,7 +57,7 @@ html,body,#root{margin:0;min-height:100%}
 .count-dot{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background-image:var(--prism);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
 
 .hero{padding:44px 0 26px}
-.eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--accent);padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--panel);margin-bottom:18px}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--accent);padding:5px 0;border-radius:20px;margin-bottom:18px}
 .hero h2{font-size:clamp(28px,4.4vw,44px);line-height:1.03;font-weight:700;letter-spacing:-.03em;margin:0 0 12px;max-width:16ch}
 .hero .grad{background-image:var(--prism);-webkit-background-clip:text;background-clip:text;color:transparent}
 .hero p{color:var(--t1);font-size:16px;line-height:1.55;max-width:52ch;margin:0 0 24px}
@@ -102,9 +102,21 @@ html,body,#root{margin:0;min-height:100%}
 .seg{display:flex;padding:3px;border-radius:11px;border:1px solid var(--border);background:var(--panel)}
 .seg button{font:inherit;font-size:12.5px;font-weight:600;color:var(--t2);border:none;background:transparent;padding:6px 13px;border-radius:8px;cursor:pointer;transition:.15s}
 .seg button.on{color:var(--t0);background:var(--panel2);box-shadow:0 1px 4px rgba(0,0,0,.12)}
-.select{position:relative}
-.select select{font:inherit;font-size:12.5px;font-weight:600;color:var(--t0);appearance:none;-webkit-appearance:none;border:1px solid var(--border);background:var(--panel);padding:9px 32px 9px 13px;border-radius:11px;cursor:pointer;outline:none}
-.select .chev{position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--t2)}
+.select{position:relative;display:inline-flex}
+.select select{font:inherit;font-size:12.5px;font-weight:600;color:var(--t0);appearance:none;-webkit-appearance:none;border:1px solid var(--border);background:var(--panel);padding:9px 32px 9px 13px;border-radius:11px;cursor:pointer;outline:none;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.select select:hover{border-color:var(--borderStrong);background:var(--panelHover)}
+.select select:focus-visible{border-color:var(--borderStrong);box-shadow:0 0 0 3px var(--glow)}
+.select select option{background:var(--bg1);color:var(--t0);font-weight:500}
+.select .chev{position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--t2);transition:color .16s ease}
+.select:hover .chev{color:var(--t1)}
+
+/* Full-width variant with a leading region icon — used by the Country filter. */
+.select-full{display:flex;width:100%}
+.select-full select{width:100%;font-size:13.5px;padding:11px 36px 11px 38px}
+.select-full .lead{position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--t2)}
+.select-full:hover .lead,.select-full:focus-within .lead{color:var(--accent)}
+.select-full select:disabled{opacity:.6;cursor:progress}
+.select-full.is-loading .chev{animation:spin .8s linear infinite}
 
 .ranked{display:flex;align-items:center;gap:11px;padding:12px 15px;border-radius:14px;margin-bottom:16px;border:1px solid rgba(124,111,242,.28);background:linear-gradient(100deg,rgba(124,111,242,.12),rgba(236,72,153,.05));animation:fadeUp .4s ease both}
 .ranked .ic{flex:none;width:32px;height:32px;border-radius:9px;background-image:var(--prism);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 14px var(--glow)}
@@ -113,6 +125,14 @@ html,body,#root{margin:0;min-height:100%}
 .ranked .txt .l2{font-size:12px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .grid{display:flex;flex-direction:column;gap:12px}
+
+.pager-info{text-align:center;font-size:12.5px;color:var(--t2);margin:22px 0 10px}
+.pager{display:flex;align-items:center;justify-content:center;gap:6px;margin:0 0 8px;flex-wrap:wrap}
+.pager-btn{min-width:36px;height:36px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:13px;font-weight:600;color:var(--t1);background:var(--panel);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:transform .16s ease,border-color .16s ease,background .16s ease,color .16s ease}
+.pager-btn:hover:not(:disabled){border-color:var(--borderStrong);background:var(--panelHover);color:var(--t0)}
+.pager-btn.on{color:#fff;background-image:var(--prism);border-color:transparent}
+.pager-btn:disabled{opacity:.4;cursor:not-allowed}
+.pager-ellipsis{padding:0 2px;color:var(--t2);font-size:14px;user-select:none}
 .card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);cursor:pointer;transition:transform .2s cubic-bezier(.16,1,.3,1),background .2s,border-color .2s,box-shadow .2s}
 .card:hover{transform:translateY(-2px);border-color:var(--borderStrong);background:var(--panel2);box-shadow:var(--shadow)}
 .card::before{content:"";position:absolute;inset:0;border-radius:16px;padding:1px;background:var(--prism);opacity:0;transition:opacity .2s;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}

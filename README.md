@@ -39,6 +39,15 @@ Edit the tracked company boards in `server/config.js` (or via
 `GREENHOUSE_BOARDS` / `LEVER_BOARDS` in `.env`). Unreachable tokens are skipped
 gracefully.
 
+## Region
+
+Search defaults to **India** and can be switched from the **Country** filter in
+the sidebar. The selected region is sent to the server (`?country=<iso2>`), which
+localizes each aggregator at the source — Adzuna's market path, SerpApi's `gl`,
+and JSearch's `country` — while company-board (Greenhouse / Lever) results are
+filtered to the region by location (remote roles always show). Change the default
+with `DEFAULT_COUNTRY` in `.env`.
+
 ## How it works
 
 ```

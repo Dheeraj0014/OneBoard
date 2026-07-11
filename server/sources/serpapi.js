@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
+import { resolveCountry, countryName } from "../lib/countries.js";
 import {
   buildJob, makeId, summarize, extractSkills, toK,
   inferLevel, inferType, inferRemote, toISO,
@@ -84,8 +85,13 @@ function mapJob(j) {
  * forward up to `config.serpapi.pages` times (each page is one SerpApi search).
  * See https://serpapi.com/google-jobs-api
  */
-export async function fetchSerpApi(query = "") {
+export async function fetchSerpApi(query = "", countryCode = "") {
   if (!config.serpapi.enabled || !query) return [];
+
+  // A selected country overrides the env defaults: `gl` restricts the country
+  // domain and the country name biases the location.
+  const gl = resolveCountry(countryCode) ? countryCode.toLowerCase() : config.serpapi.country;
+  const location = countryName(countryCode) || config.serpapi.location;
 
   const results = [];
   let pageToken = "";
@@ -97,8 +103,8 @@ export async function fetchSerpApi(query = "") {
       api_key: config.serpapi.key,
       hl: config.serpapi.lang,
     });
-    if (config.serpapi.location) params.set("location", config.serpapi.location);
-    if (config.serpapi.country) params.set("gl", config.serpapi.country);
+    if (location) params.set("location", location);
+    if (gl) params.set("gl", gl);
     if (pageToken) params.set("next_page_token", pageToken);
 
     try {

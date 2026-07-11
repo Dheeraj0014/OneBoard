@@ -16,6 +16,35 @@ export const config = {
   // Per-source network timeout (ms).
   requestTimeoutMs: 12000,
 
+  // Default search region (two-letter ISO code) when the client doesn't send
+  // one. "in" = India. The client can override per request via ?country=.
+  defaultCountry: (process.env.DEFAULT_COUNTRY || "in").toLowerCase(),
+
+  // Greenhouse public Job Board API — one board per company, no key needed.
+  // Configure the tracked companies via GREENHOUSE_BOARDS (CSV of board tokens,
+  // e.g. the "cloudflare" in boards.greenhouse.io/cloudflare).
+  greenhouse: {
+    boards: csv(process.env.GREENHOUSE_BOARDS, [
+      "gitlab", "elastic", "mongodb", "cloudflare",
+      "stripe", "airbnb", "coinbase", "datadog",
+    ]),
+    get enabled() {
+      return this.boards.length > 0;
+    },
+  },
+
+  // Lever public Postings API — one board per company, no key needed. Configure
+  // via LEVER_BOARDS (CSV of board tokens, e.g. the "leadiq" in
+  // jobs.lever.co/leadiq).
+  lever: {
+    boards: csv(process.env.LEVER_BOARDS, [
+      "netflix", "spotify", "plaid", "palantir",
+    ]),
+    get enabled() {
+      return this.boards.length > 0;
+    },
+  },
+
   // SerpApi Google Jobs engine — aggregates Google-for-Jobs listings. Requires
   // a key and a search query. https://serpapi.com/google-jobs-api
   serpapi: {
@@ -42,7 +71,8 @@ export const config = {
   adzuna: {
     appId: process.env.ADZUNA_APP_ID || "",
     appKey: process.env.ADZUNA_APP_KEY || "",
-    country: (process.env.ADZUNA_COUNTRY || "us").toLowerCase(),
+    // Fallback country when the request doesn't specify one; defaults to India.
+    country: (process.env.ADZUNA_COUNTRY || "in").toLowerCase(),
     get enabled() {
       return Boolean(this.appId && this.appKey);
     },

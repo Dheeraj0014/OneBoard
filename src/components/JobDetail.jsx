@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import {
   X, Sparkles, Check, Loader2, Copy, RotateCcw, ArrowUpRight, Heart,
 } from "lucide-react";
+import { useAuth, useClerk } from "@clerk/react";
 import { sourceColor, REMOTE, LEVEL_EXP } from "../data/constants.js";
 import { fmtSal, initials } from "../utils/format.js";
 import { draftIntro } from "../services/ai.js";
@@ -11,6 +12,8 @@ import MatchRing from "./MatchRing.jsx";
 export default function JobDetail({ job, saved, onSave, onClose, rank, toast }) {
   const [intro, setIntro] = useState("");
   const [loading, setLoading] = useState(false);
+  const { isSignedIn } = useAuth();
+  const { openSignIn } = useClerk();
   const m = REMOTE[job.remote];
   const Icon = m.icon;
 
@@ -186,8 +189,15 @@ export default function JobDetail({ job, saved, onSave, onClose, rank, toast }) 
             href={job.url}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              // Applying requires sign-in — open the modal instead of leaving.
+              if (!isSignedIn) {
+                e.preventDefault();
+                openSignIn();
+              }
+            }}
           >
-            Apply on {job.source}
+            {isSignedIn ? `Apply on ${job.source}` : `Sign in to apply on ${job.source}`}
             <ArrowUpRight size={15} />
           </a>
           <button

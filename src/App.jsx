@@ -7,9 +7,11 @@ import { useJobFilters } from "./hooks/useJobFilters.js";
 import { useJobRanking } from "./hooks/useJobRanking.js";
 import { useFilteredJobs } from "./hooks/useFilteredJobs.js";
 import { useJobs } from "./hooks/useJobs.js";
+import { useAuthGate } from "./hooks/useAuthGate.js";
 import { useEscapeKey } from "./hooks/useEscapeKey.js";
 import { useBodyScrollLock } from "./hooks/useBodyScrollLock.js";
 import { deriveSkills, deriveSources } from "./utils/derive.js";
+import { detectCountry } from "./data/countries.js";
 
 import TopBar from "./components/TopBar.jsx";
 import Hero from "./components/Hero.jsx";
@@ -24,6 +26,7 @@ import Toast from "./components/Toast.jsx";
 export default function App() {
   const [theme, setTheme] = useState("dark");
   const [query, setQuery] = useState("");
+  const [country, setCountry] = useState(detectCountry);
   const [sort, setSort] = useState("newest");
   const [view, setView] = useState("all"); // "all" | "saved"
   const [selected, setSelected] = useState(null);
@@ -31,8 +34,11 @@ export default function App() {
 
   const { toast, showToast } = useToast();
   const { saved, toggleSave } = useSavedJobs();
+  const requireAuth = useAuthGate();
+  // Saving a role requires sign-in; otherwise the Clerk sign-in modal opens.
+  const handleSave = useMemo(() => requireAuth(toggleSave), [requireAuth, toggleSave]);
   const { f, setF, resetFilters, activeFilters } = useJobFilters();
-  const { jobs, loading, error, loadJobs } = useJobs();
+  const { jobs, loading, error, loadJobs } = useJobs(country);
   const { ai, aiLoading, runAI, clearRank } = useJobRanking(
     useCallback(() => setSort("relevance"), [])
   );
@@ -58,18 +64,31 @@ export default function App() {
       if (!q) return;
       setView("all");
       setDrawer(false);
-      const list = await loadJobs(q);
+      const list = await loadJobs(q, country);
       runAI(q, list);
     },
-    [loadJobs, runAI]
+    [loadJobs, runAI, country]
+  );
+
+  // Changing the region refetches the current query (or catalog) for that
+  // country, then re-ranks if there's an active search.
+  const handleCountryChange = useCallback(
+    async (code) => {
+      if (code === country) return;
+      setCountry(code);
+      const q = query.trim();
+      const list = await loadJobs(q, code);
+      if (q) runAI(q, list);
+    },
+    [country, query, loadJobs, runAI]
   );
 
   const handleClearRank = useCallback(() => {
     clearRank();
     setSort("newest");
     setQuery("");
-    loadJobs(""); // restore the full live catalog
-  }, [clearRank, loadJobs]);
+    loadJobs("", country); // restore the full live catalog for the region
+  }, [clearRank, loadJobs, country]);
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
   const toggleSavedView = () => setView((v) => (v === "saved" ? "all" : "saved"));
@@ -101,7 +120,16 @@ export default function App() {
                   Reset filters · {activeFilters}
                 </button>
               )}
-              <Filters f={f} set={setF} counts={counts} sources={sources} allSkills={allSkills} />
+              <Filters
+                f={f}
+                set={setF}
+                counts={counts}
+                sources={sources}
+                allSkills={allSkills}
+                country={country}
+                onCountryChange={handleCountryChange}
+                countryLoading={loading}
+              />
             </aside>
 
             <section>
@@ -121,7 +149,7 @@ export default function App() {
               <JobList
                 results={results}
                 saved={saved}
-                onSave={toggleSave}
+                onSave={handleSave}
                 onOpen={setSelected}
                 ai={ai}
                 view={view}
@@ -129,7 +157,7 @@ export default function App() {
                 onReset={resetFilters}
                 loading={loading}
                 error={error}
-                onRetry={() => loadJobs(query)}
+                onRetry={() => loadJobs(query, country)}
               />
             </section>
           </div>
@@ -143,6 +171,9 @@ export default function App() {
           counts={counts}
           sources={sources}
           allSkills={allSkills}
+          country={country}
+          onCountryChange={handleCountryChange}
+          countryLoading={loading}
           activeFilters={activeFilters}
           onReset={resetFilters}
           onClose={() => setDrawer(false)}
@@ -153,7 +184,7 @@ export default function App() {
         <JobDetail
           job={selected}
           saved={saved.has(selected.id)}
-          onSave={toggleSave}
+          onSave={handleSave}
           onClose={() => setSelected(null)}
           rank={ai ? ai.map[selected.id] : null}
           toast={showToast}

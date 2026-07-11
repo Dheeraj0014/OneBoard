@@ -1,4 +1,5 @@
 import { SlidersHorizontal, Heart, Sun, Moon } from "lucide-react";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/react";
 import Logo from "./Logo.jsx";
 
 /** Sticky application header: brand, mobile filter trigger, saved & theme toggles. */
@@ -37,6 +38,18 @@ export default function TopBar({
           <button className="btn icon-btn" aria-label="Toggle theme" onClick={onToggleTheme}>
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
+
+          <Show when="signed-out">
+            <SignInButton mode="modal">
+              <button className="btn">Sign in</button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button className="btn btn-primary">Sign up</button>
+            </SignUpButton>
+          </Show>
+          <Show when="signed-in">
+            <UserButton afterSignOutUrl="/" />
+          </Show>
         </div>
       </div>
     </header>

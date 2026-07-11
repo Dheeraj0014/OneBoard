@@ -1,8 +1,12 @@
+import { useState, useEffect } from "react";
 import { Loader2, AlertTriangle, RotateCcw } from "lucide-react";
 import JobCard from "./JobCard.jsx";
 import EmptyState from "./EmptyState.jsx";
+import Pagination from "./Pagination.jsx";
 
-/** Renders the results grid, plus loading / error / empty states. */
+const PER_PAGE = 15;
+
+/** Renders the results grid (paginated), plus loading / error / empty states. */
 export default function JobList({
   results,
   saved,
@@ -16,6 +20,14 @@ export default function JobList({
   error,
   onRetry,
 }) {
+  const [page, setPage] = useState(1);
+
+  // Back to the first page whenever the result set changes (new search,
+  // filter, sort or view toggle).
+  useEffect(() => {
+    setPage(1);
+  }, [results]);
+
   if (loading && results.length === 0) {
     return (
       <div className="empty">
@@ -44,23 +56,44 @@ export default function JobList({
     );
   }
 
+  const pageCount = Math.max(1, Math.ceil(results.length / PER_PAGE));
+  const safePage = Math.min(page, pageCount);
+  const start = (safePage - 1) * PER_PAGE;
+  const pageJobs = results.slice(start, start + PER_PAGE);
+
+  const goto = (p) => {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
-    <div className="grid">
-      {results.length === 0 ? (
-        <EmptyState view={view} activeFilters={activeFilters} onReset={onReset} />
-      ) : (
-        results.map((job, i) => (
-          <JobCard
-            key={job.id}
-            job={job}
-            i={i}
-            saved={saved.has(job.id)}
-            onSave={onSave}
-            onOpen={onOpen}
-            rank={ai ? ai.map[job.id] : null}
-          />
-        ))
+    <>
+      <div className="grid">
+        {results.length === 0 ? (
+          <EmptyState view={view} activeFilters={activeFilters} onReset={onReset} />
+        ) : (
+          pageJobs.map((job, i) => (
+            <JobCard
+              key={job.id}
+              job={job}
+              i={i}
+              saved={saved.has(job.id)}
+              onSave={onSave}
+              onOpen={onOpen}
+              rank={ai ? ai.map[job.id] : null}
+            />
+          ))
+        )}
+      </div>
+
+      {results.length > PER_PAGE && (
+        <>
+          <div className="pager-info">
+            Showing {start + 1}–{start + pageJobs.length} of {results.length}
+          </div>
+          <Pagination page={safePage} pageCount={pageCount} onPage={goto} />
+        </>
       )}
-    </div>
+    </>
   );
 }

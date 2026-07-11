@@ -2,7 +2,7 @@ import { X, RotateCcw } from "lucide-react";
 import Filters from "./Filters.jsx";
 
 /** Mobile slide-in drawer wrapping the shared {@link Filters}. */
-export default function FilterDrawer({ f, setF, counts, sources, allSkills, activeFilters, onReset, onClose }) {
+export default function FilterDrawer({ f, setF, counts, sources, allSkills, country, onCountryChange, countryLoading, activeFilters, onReset, onClose }) {
   return (
     <div className="drawer-wrap">
       <div className="overlay" onClick={onClose} />
@@ -24,7 +24,16 @@ export default function FilterDrawer({ f, setF, counts, sources, allSkills, acti
           </button>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-          <Filters f={f} set={setF} counts={counts} sources={sources} allSkills={allSkills} />
+          <Filters
+            f={f}
+            set={setF}
+            counts={counts}
+            sources={sources}
+            allSkills={allSkills}
+            country={country}
+            onCountryChange={onCountryChange}
+            countryLoading={countryLoading}
+          />
         </div>
       </div>
     </div>

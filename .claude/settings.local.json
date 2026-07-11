@@ -28,7 +28,8 @@
       "Bash(curl -s -w \"\\\\nTIME: %{time_total}s HTTP:%{http_code}\\\\n\" \"http://localhost:8787/api/jobs\" -o /tmp/empty.json)",
       "Read(//tmp/**)",
       "Bash(curl -s -w \"\\\\nTIME: %{time_total}s HTTP:%{http_code}\\\\n\" \"http://localhost:8787/api/jobs?q=job\" -o /tmp/job.json)",
-      "Bash(python -c \"import json;d=json.load\\(open\\('/tmp/job.json'\\)\\);print\\('count',d.get\\('meta',{}\\).get\\('count'\\)\\);print\\('sources',d.get\\('meta',{}\\).get\\('sources'\\)\\)\")"
+      "Bash(python -c \"import json;d=json.load\\(open\\('/tmp/job.json'\\)\\);print\\('count',d.get\\('meta',{}\\).get\\('count'\\)\\);print\\('sources',d.get\\('meta',{}\\).get\\('sources'\\)\\)\")",
+      "Bash(npx vite *)"
     ]
   }
 }

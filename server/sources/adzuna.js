@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { fetchJson } from "../lib/http.js";
+import { resolveCountry } from "../lib/countries.js";
 import {
   buildJob, makeId, summarize, extractSkills, toK,
   inferLevel, inferType, inferRemote, daysAgo, toISO,
@@ -9,12 +10,16 @@ const SOURCE = "Adzuna";
 
 /**
  * Adzuna licensed search API. Requires an app id + key (free tier).
+ * `country` is a two-letter ISO code selecting the Adzuna market to search;
+ * unsupported / empty codes fall back to the configured default.
  * Returns [] when unconfigured so the app still runs on company boards alone.
  */
-export async function fetchAdzuna(query = "") {
+export async function fetchAdzuna(query = "", countryCode = "") {
   if (!config.adzuna.enabled) return [];
 
-  const { appId, appKey, country } = config.adzuna;
+  const { appId, appKey } = config.adzuna;
+  // Only search a real Adzuna market; otherwise use the configured fallback.
+  const country = resolveCountry(countryCode) ? countryCode.toLowerCase() : config.adzuna.country;
   const params = new URLSearchParams({
     app_id: appId,
     app_key: appKey,

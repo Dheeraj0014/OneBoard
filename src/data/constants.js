@@ -6,6 +6,8 @@ import { Globe, Layers, Building2 } from "lucide-react";
  * than indexing this map directly.
  */
 export const SOURCES = {
+  Greenhouse: "#14b8a6",
+  Lever: "#a855f7",
   SerpApi: "#22c55e",
   Adzuna: "#0ea5e9",
   LinkedIn: "#3b82f6",
