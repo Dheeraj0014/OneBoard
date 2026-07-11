@@ -47,10 +47,3 @@ export const LEVEL_EXP = {
   Senior: "5+ years",
   Lead: "8+ years",
 };
-
-export const EXAMPLES = [
-  "Remote senior React role",
-  "Product manager in fintech",
-  "Entry-level data analyst, remote",
-  "Rust systems engineer",
-];

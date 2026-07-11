@@ -71,9 +71,6 @@ html,body,#root{margin:0;min-height:100%}
 .searchbar input::placeholder{color:var(--t2)}
 .progress{position:absolute;left:0;bottom:0;height:2px;width:100%;overflow:hidden;border-radius:0 0 16px 16px}
 .progress::after{content:"";position:absolute;left:0;top:0;height:100%;width:32%;background-image:var(--prism);animation:sweep 1.05s ease-in-out infinite}
-.examples{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;max-width:720px}
-.ex-chip{font-size:12.5px;font-weight:500;color:var(--t1);padding:7px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel);cursor:pointer;transition:.16s}
-.ex-chip:hover{color:var(--t0);border-color:var(--borderStrong);background:var(--panelHover);transform:translateY(-1px)}
 
 .layout{display:grid;grid-template-columns:246px 1fr;gap:26px;align-items:start}
 .sidebar{position:sticky;top:84px;display:flex;flex-direction:column;gap:22px}

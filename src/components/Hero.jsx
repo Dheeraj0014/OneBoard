@@ -1,5 +1,4 @@
 import { Search, Loader2, Sparkles } from "lucide-react";
-import { EXAMPLES } from "../data/constants.js";
 
 /** Hero section with the natural-language search bar and example chips. */
 export default function Hero({ query, setQuery, onSearch, loading, aiLoading }) {
@@ -45,23 +44,6 @@ export default function Hero({ query, setQuery, onSearch, loading, aiLoading }) 
           )}
         </button>
         {busy && <div className="progress" />}
-      </div>
-
-      <div className="examples">
-        <span style={{ fontSize: 12.5, color: "var(--t2)", alignSelf: "center", fontWeight: 500 }}>Try:</span>
-        {EXAMPLES.map((ex) => (
-          <button
-            key={ex}
-            className="ex-chip"
-            disabled={busy}
-            onClick={() => {
-              setQuery(ex);
-              onSearch(ex);
-            }}
-          >
-            {ex}
-          </button>
-        ))}
       </div>
     </section>
   );
