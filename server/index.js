@@ -1,13 +1,64 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
+import { clerkMiddleware, getAuth } from "@clerk/express";
 import { config } from "./config.js";
 import { getJobs } from "./aggregate.js";
 import { rankJobs, matchJobs, extractProfile, draftIntro, AiNotConfiguredError } from "./ai.js";
 import { pdfToText, PdfParseError, MAX_PDF_BYTES } from "./lib/pdf.js";
 
 const app = express();
-app.use(cors());
+
+/** Thrown by the CORS check so the error handler can answer 403 rather than 500. */
+class OriginNotAllowedError extends Error {}
+
+// Only the origins we serve the app from may call this API. A wide-open policy
+// would let any page on the web drive the AI routes below with the user's
+// browser — and our Anthropic key.
+app.use(
+  cors({
+    origin(origin, cb) {
+      // Non-browser callers (curl, uptime checks) send no Origin header. They
+      // are allowed past CORS; the routes that cost money are still behind auth.
+      if (!origin || config.allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new OriginNotAllowedError(`Origin not allowed: ${origin}`));
+    },
+  })
+);
+
+// Attaches the caller's Clerk session (if any) to req. Skipped when Clerk is
+// unconfigured — `protect` below then refuses the paid routes outright.
+if (config.clerk.enabled) {
+  app.use(
+    clerkMiddleware({
+      secretKey: config.clerk.secretKey,
+      publishableKey: config.clerk.publishableKey,
+    })
+  );
+}
+
+/**
+ * Gate for the routes that spend Anthropic credits. Fails closed: with no Clerk
+ * keys the server refuses rather than leaving paid routes open to anyone who can
+ * reach the port. Signed-out clients get a 401 and fall back to the local
+ * heuristic ranker, so the app stays usable — it just stops billing us.
+ *
+ * Checks the session directly rather than using Clerk's `requireAuth()`, which
+ * answers an unauthenticated caller with a 302 to the sign-in page — fetch would
+ * follow that and try to parse HTML as JSON.
+ */
+function protect(req, res, next) {
+  if (!config.clerk.enabled) {
+    return res.status(503).json({
+      error: "Auth is not configured on the server — AI features are disabled",
+    });
+  }
+  if (!getAuth(req)?.userId) {
+    return res.status(401).json({ error: "Sign in to use AI features" });
+  }
+  return next();
+}
+
 // Matching posts the current result set with job descriptions attached, so the
 // body runs larger than a plain API payload.
 app.use(express.json({ limit: "4mb" }));
@@ -47,7 +98,7 @@ app.get("/api/jobs", async (req, res) => {
  * Ranks the supplied jobs against a natural-language query via Claude.
  * Returns { map: { [jobId]: { score, reason } } }.
  */
-app.post("/api/rank", async (req, res) => {
+app.post("/api/rank", protect, async (req, res) => {
   try {
     const { q, jobs } = req.body || {};
     if (typeof q !== "string" || !q.trim() || !Array.isArray(jobs)) {
@@ -59,7 +110,7 @@ app.post("/api/rank", async (req, res) => {
       return res.status(503).json({ error: err.message });
     }
     console.error("[/api/rank]", err);
-    res.status(502).json({ error: "AI ranking failed", detail: err.message });
+    res.status(502).json({ error: "AI ranking failed" });
   }
 });
 
@@ -83,7 +134,7 @@ app.post("/api/resume", upload.single("resume"), async (req, res) => {
  * POST /api/profile { resumeText, prefs }
  * Distils resume text into a structured profile. Returns { profile }.
  */
-app.post("/api/profile", async (req, res) => {
+app.post("/api/profile", protect, async (req, res) => {
   try {
     const { resumeText, prefs } = req.body || {};
     if (typeof resumeText !== "string" || resumeText.trim().length < 40) {
@@ -95,7 +146,7 @@ app.post("/api/profile", async (req, res) => {
       return res.status(503).json({ error: err.message });
     }
     console.error("[/api/profile]", err);
-    res.status(502).json({ error: "Could not read that resume", detail: err.message });
+    res.status(502).json({ error: "Could not read that resume" });
   }
 });
 
@@ -104,7 +155,7 @@ app.post("/api/profile", async (req, res) => {
  * Scores the supplied jobs against a resume profile + stated preferences.
  * Returns { map: { [jobId]: { score, reason } } }.
  */
-app.post("/api/match", async (req, res) => {
+app.post("/api/match", protect, async (req, res) => {
   try {
     const { profile, jobs } = req.body || {};
     if (!profile || typeof profile !== "object" || !Array.isArray(jobs)) {
@@ -117,7 +168,7 @@ app.post("/api/match", async (req, res) => {
       return res.status(503).json({ error: err.message });
     }
     console.error("[/api/match]", err);
-    res.status(502).json({ error: "Resume matching failed", detail: err.message });
+    res.status(502).json({ error: "Resume matching failed" });
   }
 });
 
@@ -125,7 +176,7 @@ app.post("/api/match", async (req, res) => {
  * POST /api/intro { job }
  * Drafts a short outreach intro for a job. Returns { intro }.
  */
-app.post("/api/intro", async (req, res) => {
+app.post("/api/intro", protect, async (req, res) => {
   try {
     const { job } = req.body || {};
     if (!job || typeof job !== "object") {
@@ -137,7 +188,7 @@ app.post("/api/intro", async (req, res) => {
       return res.status(503).json({ error: err.message });
     }
     console.error("[/api/intro]", err);
-    res.status(502).json({ error: "AI intro failed", detail: err.message });
+    res.status(502).json({ error: "AI intro failed" });
   }
 });
 
@@ -148,6 +199,10 @@ app.post("/api/intro", async (req, res) => {
  */
 // eslint-disable-next-line no-unused-vars -- Express identifies error handlers by arity
 app.use((err, _req, res, _next) => {
+  if (err instanceof OriginNotAllowedError) {
+    console.warn("[cors]", err.message);
+    return res.status(403).json({ error: "Origin not allowed" });
+  }
   if (err instanceof PdfParseError) {
     return res.status(400).json({ error: err.message });
   }
@@ -157,7 +212,7 @@ app.use((err, _req, res, _next) => {
     });
   }
   console.error("[unhandled]", err);
-  res.status(500).json({ error: "Something went wrong", detail: err?.message });
+  res.status(500).json({ error: "Something went wrong" });
 });
 
 app.listen(config.port, () => {
@@ -171,4 +226,10 @@ app.listen(config.port, () => {
   );
   console.log(`  region → default ${config.defaultCountry}`);
   console.log(`  ai → ${config.anthropic.enabled ? `on (${config.anthropic.model})` : "off (no ANTHROPIC_API_KEY)"}`);
+  console.log(`  auth → ${config.clerk.enabled ? "on (Clerk)" : "off — AI routes will refuse (503)"}`);
+  console.log(`  cors → ${config.allowedOrigins.join(", ")}`);
+  if (config.anthropic.enabled && !config.clerk.enabled) {
+    console.warn("  ⚠ Anthropic is configured but Clerk is not — the paid AI routes are disabled to");
+    console.warn("    prevent unauthenticated spend. Set CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY.");
+  }
 });

@@ -16,6 +16,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/express": "^2.1.40",
     "@clerk/react": "^6.12.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

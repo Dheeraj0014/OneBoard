@@ -2,7 +2,11 @@
  * Client-side AI helpers. The Anthropic key is NOT here — these call the Prism
  * Express server (server/ai.js), which holds the key and talks to Anthropic.
  * On any failure the caller falls back to {@link localRank} or a local template.
+ *
+ * These routes cost money per call, so the server requires a signed-in Clerk
+ * session. Signed out, they 401 and the caller degrades to the local heuristic.
  */
+import { withAuth } from "./authToken.js";
 
 /**
  * Offline heuristic ranking used as a fallback when the AI call fails.
@@ -39,7 +43,7 @@ export async function rankJobs(text, jobs) {
   }));
   const res = await fetch("/api/rank", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await withAuth({ "Content-Type": "application/json" }),
     body: JSON.stringify({ q: text, jobs: compact }),
   });
   if (!res.ok) throw new Error(`AI ranking unavailable (${res.status})`);
@@ -54,7 +58,7 @@ export async function rankJobs(text, jobs) {
 export async function draftIntro(job) {
   const res = await fetch("/api/intro", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await withAuth({ "Content-Type": "application/json" }),
     body: JSON.stringify({ job }),
   });
   if (!res.ok) throw new Error(`AI intro unavailable (${res.status})`);

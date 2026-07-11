@@ -20,6 +20,27 @@ export const config = {
   // one. "in" = India. The client can override per request via ?country=.
   defaultCountry: (process.env.DEFAULT_COUNTRY || "in").toLowerCase(),
 
+  // Browser origins allowed to call this API. The AI routes spend Anthropic
+  // credits per request, so the API is not open to arbitrary sites. Set
+  // ALLOWED_ORIGINS (CSV) to the deployed front-end origin in production; the
+  // default covers the Vite dev server.
+  allowedOrigins: csv(process.env.ALLOWED_ORIGINS, [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+  ]),
+
+  // Clerk — verifies the caller's session on the routes that cost money. The
+  // publishable key is the same one the browser uses, so fall back to the
+  // VITE_-prefixed value rather than making people set it twice.
+  clerk: {
+    secretKey: process.env.CLERK_SECRET_KEY || "",
+    publishableKey:
+      process.env.CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY || "",
+    get enabled() {
+      return Boolean(this.secretKey && this.publishableKey);
+    },
+  },
+
   // Greenhouse public Job Board API — one board per company, no key needed.
   // Configure the tracked companies via GREENHOUSE_BOARDS (CSV of board tokens,
   // e.g. the "cloudflare" in boards.greenhouse.io/cloudflare).

@@ -2,8 +2,10 @@
  * Resume-matching client. Mirrors services/ai.js: the Anthropic key lives on
  * the Prism server, never here. Every call throws on failure so the caller can
  * fall back to {@link localProfile} / {@link localMatch}, which keep the feature
- * usable with no API key configured.
+ * usable with no API key configured — and for signed-out users, whom the server
+ * turns away from the AI routes to avoid unauthenticated spend.
  */
+import { withAuth } from "./authToken.js";
 
 /** Read the { error } message out of a failed response, with a safe default. */
 async function errorFrom(res, fallback) {
@@ -25,7 +27,7 @@ export async function parseResumePdf(file) {
 export async function buildProfile(resumeText, prefs) {
   const res = await fetch("/api/profile", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await withAuth({ "Content-Type": "application/json" }),
     body: JSON.stringify({ resumeText, prefs }),
   });
   if (!res.ok) throw await errorFrom(res, "Could not read that resume");
@@ -42,7 +44,7 @@ export async function matchJobs(profile, jobs) {
   }));
   const res = await fetch("/api/match", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await withAuth({ "Content-Type": "application/json" }),
     body: JSON.stringify({ profile, jobs: compact }),
   });
   if (!res.ok) throw await errorFrom(res, "Resume matching unavailable");

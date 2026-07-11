@@ -8,6 +8,7 @@ import { useJobRanking } from "./hooks/useJobRanking.js";
 import { useFilteredJobs } from "./hooks/useFilteredJobs.js";
 import { useJobs } from "./hooks/useJobs.js";
 import { useAuthGate } from "./hooks/useAuthGate.js";
+import { useApiAuth } from "./hooks/useApiAuth.js";
 import { useEscapeKey } from "./hooks/useEscapeKey.js";
 import { useBodyScrollLock } from "./hooks/useBodyScrollLock.js";
 import { useProfileMatch, hasOnboarded, markOnboarded } from "./hooks/useProfileMatch.js";
@@ -42,6 +43,9 @@ export default function App() {
 
   const { toast, showToast } = useToast();
   const { saved, toggleSave } = useSavedJobs();
+  // Lets the service layer send the user's session to the AI routes, which the
+  // server only serves to signed-in callers.
+  useApiAuth();
   const requireAuth = useAuthGate();
   // Saving a role requires sign-in; otherwise the Clerk sign-in modal opens.
   const handleSave = useMemo(() => requireAuth(toggleSave), [requireAuth, toggleSave]);
