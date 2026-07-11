@@ -312,8 +312,20 @@ app.listen(config.port, () => {
   console.log(`  ai → ${config.ai.enabled ? `on (${config.ai.provider}: ${config.ai.model})` : "off (no GEMINI_API_KEY)"}`);
   console.log(`  auth → ${config.clerk.enabled ? "on (Clerk)" : "off — AI routes will refuse (503)"}`);
   console.log(`  cors → ${config.allowedOrigins.join(", ")}`);
+  console.log(
+    `  limits → jobs ${config.rateLimit.jobsPerMinute}/min, ai ${config.rateLimit.aiPerMinute}/min ` +
+      `& ${config.rateLimit.aiPerDay}/day ${config.rateLimit.trustProxy ? "(per client IP)" : "(NOT keyed to the client)"}`
+  );
   if (config.ai.enabled && !config.clerk.enabled) {
     console.warn("  ⚠ The AI provider is configured but Clerk is not — the paid AI routes are disabled to");
     console.warn("    prevent unauthenticated spend. Set CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY.");
+  }
+  // Behind a proxy without TRUST_PROXY, req.ip is the proxy's address, not the
+  // caller's — and hosts rotate proxy IPs, so requests scatter across buckets
+  // and the limits never fire. It looks like it works: the RateLimit headers are
+  // still served. This was silently true on the first deploy.
+  if (config.serveStatic && !config.rateLimit.trustProxy) {
+    console.warn("  ⚠ TRUST_PROXY is not set. Behind a host like Render the rate limits are keyed to the");
+    console.warn("    proxy rather than the caller, so they will NOT limit anyone. Set TRUST_PROXY=true.");
   }
 });
