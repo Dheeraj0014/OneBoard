@@ -25,6 +25,7 @@ import ResumeModal from "./components/ResumeModal.jsx";
 import JobList from "./components/JobList.jsx";
 import FilterDrawer from "./components/FilterDrawer.jsx";
 import JobDetail from "./components/JobDetail.jsx";
+import Footer from "./components/Footer.jsx";
 import Toast from "./components/Toast.jsx";
 
 export default function App() {
@@ -225,6 +226,8 @@ export default function App() {
             </section>
           </div>
         </main>
+
+        <Footer />
       </div>
 
       {drawer && (
