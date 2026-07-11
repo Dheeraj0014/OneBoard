@@ -1,6 +1,6 @@
 import { config } from "./config.js";
 
-const API_URL = "https://api.anthropic.com/v1/messages";
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /**
  * Thrown when a request reaches the AI routes but the server has no API key.
@@ -8,49 +8,70 @@ const API_URL = "https://api.anthropic.com/v1/messages";
  */
 export class AiNotConfiguredError extends Error {
   constructor() {
-    super("AI is not configured — set ANTHROPIC_API_KEY on the server");
+    super("AI is not configured — set GEMINI_API_KEY on the server");
     this.name = "AiNotConfiguredError";
   }
 }
 
-/** Extract the concatenated text blocks from an Anthropic messages response. */
+/** Concatenate the text parts of a Gemini candidate into one string. */
 function extractText(data) {
-  return (data.content || [])
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+  const parts = data?.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p) => p.text || "").join("");
 }
 
 /**
- * Call the Anthropic Messages API. The key comes from the server environment
- * and never leaves this process. Throws on a missing key or a non-2xx response.
+ * Call the Google AI Studio (Gemini) generateContent API. The key comes from the
+ * server environment and never leaves this process. Throws on a missing key, a
+ * non-2xx response, or a prompt the safety filters refused.
+ *
+ * `json: true` asks Gemini to emit application/json, which keeps the callers'
+ * JSON parsing honest — left to itself the model likes to wrap output in
+ * ```json fences.
  */
-async function askClaude(prompt, maxTokens = 1000) {
-  if (!config.anthropic.enabled) throw new AiNotConfiguredError();
+async function askAI(prompt, maxTokens = 1000, { json = false } = {}) {
+  if (!config.ai.enabled) throw new AiNotConfiguredError();
 
-  const res = await fetch(API_URL, {
+  const url = `${API_BASE}/${encodeURIComponent(config.ai.model)}:generateContent`;
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": config.anthropic.apiKey,
-      "anthropic-version": "2023-06-01",
+      // Header rather than ?key= so the key never lands in a URL, where proxies
+      // and access logs would happily record it.
+      "x-goog-api-key": config.ai.apiKey,
     },
     body: JSON.stringify({
-      model: config.anthropic.model,
-      max_tokens: maxTokens,
-      messages: [{ role: "user", content: prompt }],
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        ...(json ? { responseMimeType: "application/json" } : {}),
+      },
     }),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Anthropic API ${res.status}: ${detail.slice(0, 300)}`);
+    throw new Error(`Gemini API ${res.status}: ${detail.slice(0, 300)}`);
   }
-  return extractText(await res.json());
+
+  const data = await res.json();
+
+  // A prompt the safety filters rejected comes back 200 with no candidate at
+  // all, so an unguarded read would silently yield "" and look like a bad model.
+  const blocked = data?.promptFeedback?.blockReason;
+  if (blocked) throw new Error(`Gemini refused the prompt: ${blocked}`);
+
+  const text = extractText(data);
+  if (!text) {
+    const why = data?.candidates?.[0]?.finishReason || "no content returned";
+    throw new Error(`Gemini returned nothing (${why})`);
+  }
+  return text;
 }
 
 /**
- * Rank the supplied jobs against a natural-language request via Claude.
+ * Rank the supplied jobs against a natural-language request via the model.
  * Returns a map of { [jobId]: { score, reason } } covering every job passed in.
  * Throws on failure so the caller can fall back to a local heuristic.
  */
@@ -64,7 +85,7 @@ export async function rankJobs(text, jobs) {
   }));
   const prompt = `You are a job matching engine. A candidate wrote this request: "${text}".\n\nScore EVERY job below from 0-100 for how well it fits, and give a concise reason (max 10 words, lowercase, no period). Consider role, skills, seniority, workplace type, salary and location.\n\nJobs:\n${JSON.stringify(compact)}\n\nReturn ONLY a JSON array, no markdown or preamble, sorted by score descending, in this exact shape:\n[{"id":"j1","score":92,"reason":"strong react match, remote, salary fits"}]`;
 
-  const out = await askClaude(prompt);
+  const out = await askAI(prompt, 1000, { json: true });
   const s = out.indexOf("["), e = out.lastIndexOf("]");
   const arr = JSON.parse(out.slice(s, e + 1));
 
@@ -84,7 +105,7 @@ export async function rankJobs(text, jobs) {
  * Resume matching
  * ------------------------------------------------------------------ */
 
-/** Jobs sent to Claude in a single matching call. */
+/** Jobs sent to the model in a single matching call. */
 const MATCH_BATCH = 12;
 /** Hard cap on jobs scored per request, to bound latency and token spend. */
 const MATCH_LIMIT = 60;
@@ -117,7 +138,7 @@ ${resume}
 Return ONLY a JSON object, no markdown or preamble, in this exact shape:
 {"title":"their current or target job title","level":"one of Entry, Mid, Senior, Lead","years":5,"skills":["up to 12 concrete technical skills, most important first"],"domains":["up to 4 industries or problem domains they have worked in"],"summary":"one sentence, max 20 words, describing them as a candidate"}`;
 
-  const profile = parseJson(await askClaude(prompt, 700), "{", "}");
+  const profile = parseJson(await askAI(prompt, 700, { json: true }), "{", "}");
 
   return {
     title: String(profile.title || "").slice(0, 80),
@@ -171,7 +192,7 @@ Give a concise reason (max 10 words, lowercase, no period) naming the specific o
 Return ONLY a JSON array, no markdown or preamble, in this exact shape:
 [{"id":"j1","score":92,"reason":"react + typescript match, senior level, remote"}]`;
 
-  const arr = parseJson(await askClaude(prompt, 1600), "[", "]");
+  const arr = parseJson(await askAI(prompt, 1600, { json: true }), "[", "]");
   const map = {};
   arr.forEach((r) => {
     if (r && r.id) {
@@ -193,7 +214,7 @@ Return ONLY a JSON array, no markdown or preamble, in this exact shape:
  * Returns a map of { [jobId]: { score, reason } } covering every job passed in.
  */
 export async function matchJobs(profile, jobs) {
-  if (!config.anthropic.enabled) throw new AiNotConfiguredError();
+  if (!config.ai.enabled) throw new AiNotConfiguredError();
 
   const subset = jobs.slice(0, MATCH_LIMIT);
   const batches = [];
@@ -228,6 +249,6 @@ export async function matchJobs(profile, jobs) {
 export async function draftIntro(job) {
   const focus = job.skills?.length ? `these skills: ${job.skills.join(", ")}` : `the focus of the "${job.title}" role`;
   const prompt = `Write a confident, warm 3-4 sentence outreach intro from a job seeker applying to ${job.company} for the "${job.title}" role. Naturally reference 1-2 of ${focus}. Write in first person, no greeting line, no signature, no placeholders like [Name]. Return only the paragraph.`;
-  const text = await askClaude(prompt);
+  const text = await askAI(prompt);
   return text.trim();
 }

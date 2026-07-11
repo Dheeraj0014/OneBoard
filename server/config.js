@@ -28,7 +28,7 @@ export const config = {
   requestTimeoutMs: 12000,
 
   // Rate limits. /api/jobs spends SerpAPI quota on every cache miss and the AI
-  // routes spend Anthropic credits, so both are capped rather than left open.
+  // routes spend AI provider credits, so both are capped rather than left open.
   rateLimit: {
     // Behind a hosting proxy (Render, Fly, …) the real client IP arrives in
     // X-Forwarded-For. Without trusting it, every visitor shares one bucket and
@@ -46,7 +46,7 @@ export const config = {
   // one. "in" = India. The client can override per request via ?country=.
   defaultCountry: (process.env.DEFAULT_COUNTRY || "in").toLowerCase(),
 
-  // Browser origins allowed to call this API. The AI routes spend Anthropic
+  // Browser origins allowed to call this API. The AI routes spend real AI provider
   // credits per request, so the API is not open to arbitrary sites. Set
   // ALLOWED_ORIGINS (CSV) to the deployed front-end origin in production; the
   // default covers the Vite dev server.
@@ -133,12 +133,19 @@ export const config = {
     },
   },
 
-  // Anthropic — powers the AI ranker and intro drafter. The key lives here on
-  // the server so it is never exposed to the browser. Without a key the AI
-  // routes return 503 and the client falls back to its local heuristic.
-  anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY || "",
-    model: process.env.AI_MODEL || "claude-sonnet-4-6",
+  // The model behind the AI ranker, resume matcher and intro drafter. Currently
+  // Google AI Studio (Gemini). The key lives here on the server so it is never
+  // exposed to the browser; without one the AI routes return 503 and the client
+  // falls back to its local heuristic.
+  //
+  // Kept provider-neutral (`config.ai`, not `config.google`) so swapping the
+  // backend again only means rewriting server/ai.js, not every call site.
+  ai: {
+    provider: "google",
+    // GEMINI_API_KEY is what Google AI Studio calls it; GOOGLE_API_KEY is
+    // accepted too since that's the name people tend to reach for.
+    apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "",
+    model: process.env.AI_MODEL || "gemini-2.0-flash",
     get enabled() {
       return Boolean(this.apiKey);
     },

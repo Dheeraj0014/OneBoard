@@ -1,5 +1,5 @@
 /**
- * Resume-matching client. Mirrors services/ai.js: the Anthropic key lives on
+ * Resume-matching client. Mirrors services/ai.js: the provider API key lives on
  * the Prism server, never here. Every call throws on failure so the caller can
  * fall back to {@link localProfile} / {@link localMatch}, which keep the feature
  * usable with no API key configured — and for signed-out users, whom the server
@@ -53,7 +53,7 @@ export async function matchJobs(profile, jobs) {
 }
 
 /* ------------------------------------------------------------------ *
- * Offline fallbacks — used when the server has no ANTHROPIC_API_KEY.
+ * Offline fallbacks — used when the server has no AI provider key.
  * ------------------------------------------------------------------ */
 
 const LEVELS = ["Entry", "Mid", "Senior", "Lead"];

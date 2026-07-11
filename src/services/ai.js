@@ -1,6 +1,6 @@
 /**
- * Client-side AI helpers. The Anthropic key is NOT here — these call the Prism
- * Express server (server/ai.js), which holds the key and talks to Anthropic.
+ * Client-side AI helpers. The provider API key is NOT here — these call the Prism
+ * Express server (server/ai.js), which holds the key and talks to the model.
  * On any failure the caller falls back to {@link localRank} or a local template.
  *
  * These routes cost money per call, so the server requires a signed-in Clerk

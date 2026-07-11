@@ -19,7 +19,7 @@ export function setTokenGetter(fn) {
  *
  * Signed out, the headers come back unchanged and the server answers 401. The
  * callers treat that as "AI unavailable" and fall back to their local heuristic,
- * so the app keeps working — it just stops spending Anthropic credits.
+ * so the app keeps working — it just stops spending AI provider credits.
  */
 export async function withAuth(headers = {}) {
   const token = await getToken().catch(() => null);

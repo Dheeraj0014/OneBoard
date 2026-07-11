@@ -21,7 +21,7 @@ class OriginNotAllowedError extends Error {}
 
 // Only the origins we serve the app from may call this API. A wide-open policy
 // would let any page on the web drive the AI routes below with the user's
-// browser — and our Anthropic key.
+// browser — and our AI provider key.
 app.use(
   cors((req, cb) => {
     const origin = req.headers.origin;
@@ -52,7 +52,7 @@ if (config.clerk.enabled) {
 }
 
 /**
- * Gate for the routes that spend Anthropic credits. Fails closed: with no Clerk
+ * Gate for the routes that spend AI provider credits. Fails closed: with no Clerk
  * keys the server refuses rather than leaving paid routes open to anyone who can
  * reach the port. Signed-out clients get a 401 and fall back to the local
  * heuristic ranker, so the app stays usable — it just stops billing us.
@@ -122,7 +122,7 @@ const aiDailyLimit = limiter(
   aiKey
 );
 
-/** Applied to every route that calls Anthropic: auth, then burst, then daily cap. */
+/** Applied to every route that calls the AI provider: auth, then burst, then daily cap. */
 const paid = [protect, aiBurstLimit, aiDailyLimit];
 
 // Matching posts the current result set with job descriptions attached, so the
@@ -140,7 +140,7 @@ const upload = multer({
 });
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, ts: new Date().toISOString(), ai: config.anthropic.enabled });
+  res.json({ ok: true, ts: new Date().toISOString(), ai: config.ai.enabled });
 });
 
 /**
@@ -309,11 +309,11 @@ app.listen(config.port, () => {
       `theirstack:${config.theirstack.enabled ? "on" : "off"}`
   );
   console.log(`  region → default ${config.defaultCountry}`);
-  console.log(`  ai → ${config.anthropic.enabled ? `on (${config.anthropic.model})` : "off (no ANTHROPIC_API_KEY)"}`);
+  console.log(`  ai → ${config.ai.enabled ? `on (${config.ai.provider}: ${config.ai.model})` : "off (no GEMINI_API_KEY)"}`);
   console.log(`  auth → ${config.clerk.enabled ? "on (Clerk)" : "off — AI routes will refuse (503)"}`);
   console.log(`  cors → ${config.allowedOrigins.join(", ")}`);
-  if (config.anthropic.enabled && !config.clerk.enabled) {
-    console.warn("  ⚠ Anthropic is configured but Clerk is not — the paid AI routes are disabled to");
+  if (config.ai.enabled && !config.clerk.enabled) {
+    console.warn("  ⚠ The AI provider is configured but Clerk is not — the paid AI routes are disabled to");
     console.warn("    prevent unauthenticated spend. Set CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY.");
   }
 });
