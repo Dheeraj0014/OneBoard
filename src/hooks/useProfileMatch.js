@@ -117,7 +117,9 @@ export function useProfileMatch(jobs, { onMatched } = {}) {
       next = await buildProfile(resumeText, prefs);
     } catch (err) {
       // A 503 means the server has no API key — that's expected, so read the
-      // resume locally. Anything else is a real failure worth surfacing.
+      // resume locally. A 401 means they aren't signed in, and the modal turns
+      // that into a sign-in button rather than a dead end, so let it through.
+      // Anything else is a real failure worth surfacing.
       if (!/not configured/i.test(err.message)) throw err;
       next = localProfile(resumeText, prefs);
     }

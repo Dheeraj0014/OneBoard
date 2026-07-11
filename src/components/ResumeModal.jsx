@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from "react";
-import { Upload, FileText, X, Sparkles, Loader2, AlertTriangle, Check } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Upload, FileText, X, Sparkles, Loader2, AlertTriangle, Check, LogIn } from "lucide-react";
+import { useClerk } from "@clerk/react";
 import { parseResumePdf } from "../services/profile.js";
 import { LEVELS, REMOTES } from "../data/constants.js";
 
@@ -33,8 +34,20 @@ export default function ResumeModal({ onSubmit, onSkip, onClose, allSkills = [],
   const [parsing, setParsing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // Scoring a resume is a signed-in feature, so a signed-out submit comes back
+  // 401. That's not a failure to report — it's a step to offer.
+  const [needsSignIn, setNeedsSignIn] = useState(false);
 
+  const { openSignIn } = useClerk();
   const inputRef = useRef(null);
+  const errRef = useRef(null);
+
+  // The submit button lives in a sticky footer, but the message it produces
+  // renders at the end of a scrollable body — so without this it lands off
+  // screen and the click looks like it did nothing.
+  useEffect(() => {
+    if (error) errRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [error]);
 
   // Suggest the skills that actually appear in the live feed — a chip for a
   // skill no listing mentions is a dead end. Top up from a static list when the
@@ -70,6 +83,7 @@ export default function ResumeModal({ onSubmit, onSkip, onClose, allSkills = [],
       return;
     }
     setError("");
+    setNeedsSignIn(false);
     setSubmitting(true);
     try {
       await onSubmit(text, {
@@ -80,7 +94,14 @@ export default function ResumeModal({ onSubmit, onSkip, onClose, allSkills = [],
       });
       // Parent closes the modal on success.
     } catch (err) {
-      setError(err.message || "Couldn't read that resume. Try again.");
+      if (err.status === 401) {
+        // Everything they typed stays put, so signing in and pressing the button
+        // again is all it takes — they don't re-upload anything.
+        setNeedsSignIn(true);
+        setError("Sign in to score every role against your resume.");
+      } else {
+        setError(err.message || "Couldn't read that resume. Try again.");
+      }
       setSubmitting(false);
     }
   };
@@ -251,9 +272,15 @@ export default function ResumeModal({ onSubmit, onSkip, onClose, allSkills = [],
           </div>
 
           {error && (
-            <div className="rm-err">
-              <AlertTriangle size={14} />
+            <div ref={errRef} className={`rm-err${needsSignIn ? " rm-err-auth" : ""}`}>
+              {needsSignIn ? <Sparkles size={14} /> : <AlertTriangle size={14} />}
               <span>{error}</span>
+              {needsSignIn && (
+                <button className="btn btn-primary rm-err-cta" onClick={() => openSignIn()}>
+                  <LogIn size={14} />
+                  Sign in
+                </button>
+              )}
             </div>
           )}
         </div>

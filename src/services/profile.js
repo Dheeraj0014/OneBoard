@@ -7,10 +7,16 @@
  */
 import { withAuth } from "./authToken.js";
 
-/** Read the { error } message out of a failed response, with a safe default. */
+/**
+ * Read the { error } message out of a failed response, with a safe default.
+ * The status rides along so callers can tell "you need to sign in" (401) apart
+ * from a genuine failure, and offer the right way out.
+ */
 async function errorFrom(res, fallback) {
   const body = await res.json().catch(() => null);
-  return new Error(body?.error || `${fallback} (${res.status})`);
+  const err = new Error(body?.error || `${fallback} (${res.status})`);
+  err.status = res.status;
+  return err;
 }
 
 /** Upload a PDF resume and get its plain text back. */
