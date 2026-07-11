@@ -8,7 +8,11 @@ services:
     name: oneboard
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    # --include=dev is load-bearing. NODE_ENV=production (below) applies to the
+    # BUILD step too, and npm omits devDependencies under it — which takes vite
+    # with it, so a plain `npm ci` leaves `npm run build` failing on "vite: not
+    # found". This is the whole reason the first deploy failed.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
