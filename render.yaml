@@ -30,7 +30,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: AI_MODEL
-        value: gemini-2.0-flash
+        value: gemini-flash-lite-latest
 
       # ── Job sources (all optional; the app boots with whichever are set) ────
       - key: SERPAPI_KEY

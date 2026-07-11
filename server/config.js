@@ -145,7 +145,7 @@ export const config = {
     // GEMINI_API_KEY is what Google AI Studio calls it; GOOGLE_API_KEY is
     // accepted too since that's the name people tend to reach for.
     apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "",
-    model: process.env.AI_MODEL || "gemini-2.0-flash",
+    model: process.env.AI_MODEL || "gemini-flash-lite-latest",
     get enabled() {
       return Boolean(this.apiKey);
     },

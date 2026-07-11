@@ -2,6 +2,34 @@ import { config } from "./config.js";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
+/** Shape of a scored-jobs reply, for both the query ranker and the resume matcher. */
+const SCORES_SCHEMA = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    properties: {
+      id: { type: "STRING" },
+      score: { type: "INTEGER" },
+      reason: { type: "STRING" },
+    },
+    required: ["id", "score", "reason"],
+  },
+};
+
+/** Shape of the structured profile distilled from a resume. */
+const PROFILE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    title: { type: "STRING" },
+    level: { type: "STRING", enum: ["Entry", "Mid", "Senior", "Lead"] },
+    years: { type: "INTEGER" },
+    skills: { type: "ARRAY", items: { type: "STRING" } },
+    domains: { type: "ARRAY", items: { type: "STRING" } },
+    summary: { type: "STRING" },
+  },
+  required: ["title", "level", "skills", "summary"],
+};
+
 /**
  * Thrown when a request reaches the AI routes but the server has no API key.
  * The route maps this to a 503 so the client knows to fall back gracefully.
@@ -24,11 +52,12 @@ function extractText(data) {
  * server environment and never leaves this process. Throws on a missing key, a
  * non-2xx response, or a prompt the safety filters refused.
  *
- * `json: true` asks Gemini to emit application/json, which keeps the callers'
- * JSON parsing honest — left to itself the model likes to wrap output in
- * ```json fences.
+ * Pass `schema` to get structured output. responseMimeType alone is not enough:
+ * Gemini has been observed returning an array with no closing bracket while
+ * still reporting finishReason STOP, so the only reliable way to get parseable
+ * JSON is to constrain the shape with responseSchema.
  */
-async function askAI(prompt, maxTokens = 1000, { json = false } = {}) {
+async function askAI(prompt, maxTokens = 1000, { schema = null } = {}) {
   if (!config.ai.enabled) throw new AiNotConfiguredError();
 
   const url = `${API_BASE}/${encodeURIComponent(config.ai.model)}:generateContent`;
@@ -45,7 +74,14 @@ async function askAI(prompt, maxTokens = 1000, { json = false } = {}) {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         maxOutputTokens: maxTokens,
-        ...(json ? { responseMimeType: "application/json" } : {}),
+        // Current Gemini flash models reason before answering, and that reasoning
+        // is billed against maxOutputTokens. Left on, it swallows the budget and
+        // the answer comes back truncated mid-JSON. These are extraction and
+        // scoring tasks, not puzzles — they don't need a scratchpad.
+        thinkingConfig: { thinkingBudget: 0 },
+        ...(schema
+          ? { responseMimeType: "application/json", responseSchema: schema }
+          : {}),
       },
     }),
   });
@@ -67,6 +103,13 @@ async function askAI(prompt, maxTokens = 1000, { json = false } = {}) {
     const why = data?.candidates?.[0]?.finishReason || "no content returned";
     throw new Error(`Gemini returned nothing (${why})`);
   }
+
+  // A truncated answer still has text, so it would otherwise surface downstream
+  // as a baffling "No JSON found" instead of "your token budget was too small".
+  if (data?.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+    throw new Error(`Gemini hit maxOutputTokens (${maxTokens}) — output truncated`);
+  }
+
   return text;
 }
 
@@ -85,7 +128,10 @@ export async function rankJobs(text, jobs) {
   }));
   const prompt = `You are a job matching engine. A candidate wrote this request: "${text}".\n\nScore EVERY job below from 0-100 for how well it fits, and give a concise reason (max 10 words, lowercase, no period). Consider role, skills, seniority, workplace type, salary and location.\n\nJobs:\n${JSON.stringify(compact)}\n\nReturn ONLY a JSON array, no markdown or preamble, sorted by score descending, in this exact shape:\n[{"id":"j1","score":92,"reason":"strong react match, remote, salary fits"}]`;
 
-  const out = await askAI(prompt, 1000, { json: true });
+  // One scored entry costs ~30 tokens, so a full 50-job set needs ~1500. The old
+  // 1000-token ceiling truncated every full-size ranking — which failed silently
+  // into the local heuristic, so the AI path looked like it was working.
+  const out = await askAI(prompt, 4000, { schema: SCORES_SCHEMA });
   const s = out.indexOf("["), e = out.lastIndexOf("]");
   const arr = JSON.parse(out.slice(s, e + 1));
 
@@ -105,8 +151,12 @@ export async function rankJobs(text, jobs) {
  * Resume matching
  * ------------------------------------------------------------------ */
 
-/** Jobs sent to the model in a single matching call. */
-const MATCH_BATCH = 12;
+/**
+ * Jobs sent to the model in a single matching call. Kept high enough that a full
+ * MATCH_LIMIT set is 3 calls rather than 5 — Gemini's free tier throttles bursts
+ * of parallel requests, and a 429'd batch costs its jobs a real score.
+ */
+const MATCH_BATCH = 20;
 /** Hard cap on jobs scored per request, to bound latency and token spend. */
 const MATCH_LIMIT = 60;
 
@@ -138,7 +188,7 @@ ${resume}
 Return ONLY a JSON object, no markdown or preamble, in this exact shape:
 {"title":"their current or target job title","level":"one of Entry, Mid, Senior, Lead","years":5,"skills":["up to 12 concrete technical skills, most important first"],"domains":["up to 4 industries or problem domains they have worked in"],"summary":"one sentence, max 20 words, describing them as a candidate"}`;
 
-  const profile = parseJson(await askAI(prompt, 700, { json: true }), "{", "}");
+  const profile = parseJson(await askAI(prompt, 700, { schema: PROFILE_SCHEMA }), "{", "}");
 
   return {
     title: String(profile.title || "").slice(0, 80),
@@ -192,7 +242,7 @@ Give a concise reason (max 10 words, lowercase, no period) naming the specific o
 Return ONLY a JSON array, no markdown or preamble, in this exact shape:
 [{"id":"j1","score":92,"reason":"react + typescript match, senior level, remote"}]`;
 
-  const arr = parseJson(await askAI(prompt, 1600, { json: true }), "[", "]");
+  const arr = parseJson(await askAI(prompt, 2500, { schema: SCORES_SCHEMA }), "[", "]");
   const map = {};
   arr.forEach((r) => {
     if (r && r.id) {
