@@ -13,7 +13,7 @@ export default function Toolbar({ view, setView, count, ai, sort, setSort, saved
           <>
             <b>{count}</b> {count === 1 ? "role" : "roles"}
             {ai ? " ranked" : ""}
-            {boardCount ? ` across ${boardCount} ${boardCount === 1 ? "source" : "sources"}` : ""}
+            {/* {boardCount ? ` across ${boardCount} ${boardCount === 1 ? "source" : "sources"}` : ""} */}
           </>
         )}
       </div>
